@@ -10,7 +10,7 @@ concurrency:
   cancel-in-progress: true
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build-and-smoke:
@@ -106,8 +106,9 @@ jobs:
           (
             cd "$SOURCE_DIR"
             zip -9qr "$GITHUB_WORKSPACE/dist/KaltraSounds-1.0.0-beta.8-source.zip" . \
-              -x 'build/*' '.gradle/*' '.git/*' '*.class' '*.jar'
+              -x 'build/*' '.gradle/*' '.git/*' '*.class'
           )
+          unzip -Z1 dist/KaltraSounds-1.0.0-beta.8-source.zip | grep -F 'gradle/wrapper/gradle-wrapper.jar'
 
       - name: Boot Paper and validate beta.8
         shell: bash
@@ -148,6 +149,25 @@ jobs:
           test -f plugins/KaltraSounds/nbs/README.txt
           ! grep -E 'KaltraSounds failed to enable|Could not load.*KaltraSounds|NoClassDefFoundError|NoSuchMethodError|UnsupportedClassVersionError|Reload failed|Configuration problem' server.log
           cp server.log ../dist/Paper-26.1.1-beta.8-smoke.log
+
+      - name: Publish complete beta.8 source branch
+        continue-on-error: true
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          cd "$SOURCE_DIR"
+          rm -rf .git
+          git init -q
+          git config user.name 'KaltraSounds CI'
+          git config user.email 'actions@users.noreply.github.com'
+          git checkout -q -b agent/beta8-source
+          git add -A
+          git add -f gradle/wrapper/gradle-wrapper.jar
+          git commit -q -m 'Publish KaltraSounds beta.8 source'
+          git remote add origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git push --force origin HEAD:refs/heads/agent/beta8-source
 
       - uses: actions/upload-artifact@v4
         if: always()
