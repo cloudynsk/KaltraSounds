@@ -1,0 +1,169 @@
+From fd67279f71aa3116347c20477815ee1b1750a8d7 Mon Sep 17 00:00:00 2001
+From: OpenAI <noreply@openai.com>
+Date: Fri, 17 Jul 2026 16:57:14 +0000
+Subject: [PATCH] Add configurable loop fades and timing controls
+
+---
+ BUILDING.md                                   |   4 +-
+ CHANGES-beta.7.md                             |  22 +++
+ FEATURE_MATRIX.md                             |   4 +-
+ LOOPING.md                                    |  56 +++++++
+ README.md                                     |  11 +-
+ TESTING-beta.7.md                             |  12 ++
+ build.gradle.kts                              |   2 +-
+ .../java/net/kaltra/sounds/ConfigHub.java     |  52 +++++++
+ .../net/kaltra/sounds/LoopExitController.java |  87 +++++++++++
+ .../java/net/kaltra/sounds/LoopSettings.java  | 147 ++++++++++++++++++
+ .../java/net/kaltra/sounds/RegionModule.java  | 131 +++++++++-------
+ .../net/kaltra/sounds/RepeatingSoundLoop.java | 100 ++++++++++++
+ .../net/kaltra/sounds/SituationalModule.java  | 109 ++++++-------
+ .../java/net/kaltra/sounds/SoundEngine.java   |  12 +-
+ .../java/net/kaltra/sounds/SoundSpec.java     |   5 +
+ src/main/resources/Sounds/biomes.yml          |   2 +
+ src/main/resources/Sounds/regions.yml         |   2 +
+ src/main/resources/plugin.yml                 |   2 +-
+ 18 files changed, 640 insertions(+), 120 deletions(-)
+ create mode 100644 CHANGES-beta.7.md
+ create mode 100644 LOOPING.md
+ create mode 100644 TESTING-beta.7.md
+ create mode 100644 src/main/java/net/kaltra/sounds/LoopExitController.java
+ create mode 100644 src/main/java/net/kaltra/sounds/LoopSettings.java
+ create mode 100644 src/main/java/net/kaltra/sounds/RepeatingSoundLoop.java
+
+diff --git a/BUILDING.md b/BUILDING.md
+index b466f1a..40b0b65 100644
+--- a/BUILDING.md
++++ b/BUILDING.md
+@@ -17,7 +17,7 @@ gradle clean build
+ The plugin jar will be created under:
+ 
+ ```text
+-build/libs/KaltraSounds-1.0.0-beta.6.jar
++build/libs/KaltraSounds-1.0.0-beta.7.jar
+ ```
+ 
+ Paper is a `compileOnly` dependency and is not bundled into the plugin jar.
+@@ -38,5 +38,5 @@ Using Gradle is preferred because Paper API has transitive compile dependencies.
+ 2. Inspect the jar to confirm it contains no `org/bukkit`, `io/papermc`, or dependency classes.
+ 3. Start a clean Paper 26.1.1 test server.
+ 4. Run `/pms validate`.
+-5. Exercise the cases in `TESTING-beta.6.md`.
++5. Exercise the cases in `TESTING-beta.7.md`.
+ 6. Only then promote the jar to the production server.
+diff --git a/CHANGES-beta.7.md b/CHANGES-beta.7.md
+new file mode 100644
+index 0000000..df4587a
+--- /dev/null
++++ b/CHANGES-beta.7.md
+@@ -0,0 +1,22 @@
++# KaltraSounds 1.0.0-beta.7 changes
++
++## Loop engine
++
++- Added shared region and biome loop scheduling instead of separate fixed-rate implementations.
++- Added `Period Randomness` for ambient timing variation.
++- Added `Maximum Plays` with `0` meaning unlimited.
++- Added replay-volume fade-in with configurable play count, starting multiplier and curve.
++- Added optional replay-volume fade-out under `Stop On Exit` with configurable play count, period, ending multiplier and curve.
++- Added `LINEAR`, `SMOOTHSTEP` and `EXPONENTIAL` curves.
++- Re-entry cancels every pending fade-out task.
++- Reload and shutdown stop active loop sounds and cancel all loop/fade tasks.
++- Natural completion removes loop state instead of leaving stale handles.
++
++## Validation and commands
++
++- `/pms validate` checks all loop timing, count, multiplier and curve settings.
++- `/pms region sound <region> loop ...` now creates the complete disabled-by-default fade configuration so it can be edited explicitly.
++
++## Compatibility note
++
++Minecraft cannot change the volume of an already-playing sound instance. Fade controls operate across replay cycles and are best suited to short loop clips.
+diff --git a/FEATURE_MATRIX.md b/FEATURE_MATRIX.md
+index d585b44..e3fa100 100644
+--- a/FEATURE_MATRIX.md
++++ b/FEATURE_MATRIX.md
+@@ -1,10 +1,10 @@
+ # Feature matrix
+ 
+-| Original capability | KaltraSounds beta.6 status | Notes |
++| Original capability | KaltraSounds beta.7 status | Notes |
+ |---|---|---|
+ | Event sounds | Implemented | Missing `Enabled` defaults to false; cancellation semantics retained. |
+ | Situational YAML filters | Implemented | Commands, chat, items, hit, death, game modes, biomes and world time. |
+-| Native sound regions | Implemented | Ownership, overlap, lifecycle, reload and delayed-stop handling audited. |
++| Native sound regions | Implemented | Ownership, overlap, lifecycle, reload, randomized loop periods, play limits, and replay-volume fades supported. |
+ | WorldGuard / RedProtect regions | Implemented through reflection | Requires runtime testing with the exact installed provider versions. |
+ | Sound Commands addon | Integrated | `/pms play`, stop, test, list and editor paths. |
+ | Custom Discs addon | Implemented | Real jukebox insertion/ejection, multiple sounds, NBS, rollback and recovery. |
+diff --git a/LOOPING.md b/LOOPING.md
+new file mode 100644
+index 0000000..0cc9dd1
+--- /dev/null
++++ b/LOOPING.md
+@@ -0,0 +1,56 @@
++# Loop controls
++
++KaltraSounds beta.7 adds shared loop controls for native regions, WorldGuard/RedProtect regions, and biome loops.
++
++```yaml
++Loop:
++  Enabled: true
++  Delay: 0
++  Period: 100
++  Period Randomness: 0
++  Maximum Plays: 0
++
++  Fade In:
++    Enabled: false
++    Plays: 3
++    Start Volume Multiplier: 0.2
++    Curve: SMOOTHSTEP
++
++  Stop On Exit:
++    Enabled: true
++    Delay: 0
++    Fade Out:
++      Enabled: false
++      Plays: 3
++      Period: 20
++      End Volume Multiplier: 0.0
++      Curve: SMOOTHSTEP
++
++  Sounds:
++    1:
++      Sound: ambient.cave
++      Volume: 1.0
++      Pitch: 1.0
++      Options:
++        Radius: 0
++```
++
++## Settings
++
++- `Delay`: ticks before the first play.
++- `Period`: base ticks between plays.
++- `Period Randomness`: random plus/minus variation applied to each period. The effective period never drops below one tick.
++- `Maximum Plays`: total loop plays before stopping automatically. `0` means unlimited.
++- `Fade In.Plays`: number of loop replays used to reach full configured volume.
++- `Fade In.Start Volume Multiplier`: starting fraction of each sound's configured volume, from `0.0` to `1.0`.
++- `Stop On Exit.Delay`: delay before the fade-out or immediate stop begins.
++- `Fade Out.Plays`: number of decreasing-volume tail replays after exit.
++- `Fade Out.Period`: ticks between tail replays.
++- `Fade Out.End Volume Multiplier`: final replay volume fraction, from `0.0` to `1.0`.
++- `Curve`: `LINEAR`, `SMOOTHSTEP`, or `EXPONENTIAL`.
++
++## Important audio limitation
++
++Minecraft's server sound packet cannot continuously change the volume of a sound instance that is already playing. KaltraSounds therefore fades the volume **between repeated plays**. This works best with short ambient clips whose duration is at or below `Period`.
++
++For one long music or ambience file, a fade-out replay would restart or overlap the clip. Keep `Fade Out.Enabled: false` for long files and use `Stop On Exit` for an immediate stop, or split the resource-pack audio into short seamless segments designed for replay fading.
+diff --git a/README.md b/README.md
+index 7a8120b..081dcb8 100644
+--- a/README.md
++++ b/README.md
+@@ -7,7 +7,7 @@ KaltraSounds is an all-in-one Paper sound platform intended to replace PlayMoreS
+ - Paper 26.1.1
+ - Paper API `26.1.1.build.29-alpha`
+ - Java 25
+-- Plugin version `1.0.0-beta.6`
++ Plugin version `1.0.0-beta.7`
