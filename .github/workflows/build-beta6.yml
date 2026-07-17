@@ -1,0 +1,71 @@
+name: Build KaltraSounds beta.6
+
+on:
+  push:
+    branches:
+      - main
+      - agent/build-beta6
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Java 25 / Paper 26.1.1
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up Java 25
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '25'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6
+        with:
+          gradle-version: current
+          cache-provider: basic
+
+      - name: Reconstruct audited source archive
+        shell: bash
+        run: |
+          cat source-archive/part-* > KaltraSounds-1.0.0-beta.6-audited-source.zip.b64
+          base64 --decode KaltraSounds-1.0.0-beta.6-audited-source.zip.b64 > KaltraSounds-1.0.0-beta.6-audited-source.zip
+          unzip -q KaltraSounds-1.0.0-beta.6-audited-source.zip
+
+      - name: Build against the real Paper API
+        working-directory: KaltraSounds-1.0.0-beta.6-source
+        run: gradle clean build --no-daemon --stacktrace
+
+      - name: Inspect compiled JAR
+        shell: bash
+        run: |
+          JAR="$(find KaltraSounds-1.0.0-beta.6-source/build/libs -maxdepth 1 -name '*.jar' -type f | head -n 1)"
+          test -n "$JAR"
+          unzip -l "$JAR" | tee jar-contents.txt
+          unzip -l "$JAR" | grep -q 'plugin.yml'
+          if unzip -l "$JAR" | grep -qE '(^|[[:space:]])(org/bukkit|io/papermc)/'; then
+            echo 'The plugin JAR incorrectly bundles Bukkit or Paper classes.' >&2
+            exit 1
+          fi
+          cp "$JAR" KaltraSounds-1.0.0-beta.6.jar
+          sha256sum KaltraSounds-1.0.0-beta.6.jar > KaltraSounds-1.0.0-beta.6.jar.sha256
+
+      - name: Upload compiled plugin
+        uses: actions/upload-artifact@v4
+        with:
+          name: KaltraSounds-1.0.0-beta.6
+          path: |
+            KaltraSounds-1.0.0-beta.6.jar
+            KaltraSounds-1.0.0-beta.6.jar.sha256
+            jar-contents.txt
+          if-no-files-found: error
+          retention-days: 30
