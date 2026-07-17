@@ -1,8 +1,8 @@
 name: Build KaltraSounds beta.8
 
 on:
-  pull_request:
-    branches: [main]
+  push:
+    branches: [agent/build-beta6-java25]
   workflow_dispatch:
 
 concurrency:
@@ -151,7 +151,6 @@ jobs:
           cp server.log ../dist/Paper-26.1.1-beta.8-smoke.log
 
       - name: Publish complete beta.8 source branch
-        continue-on-error: true
         shell: bash
         env:
           GITHUB_TOKEN: ${{ github.token }}
