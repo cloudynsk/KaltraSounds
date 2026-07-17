@@ -29,6 +29,7 @@ jobs:
           echo "594ffe4ea8ec68bd80b421f1938a1ff1af09e48653b3fdf33767ca2400f12720  $RUNNER_TEMP/beta8.patch.gz" | sha256sum -c --strict
           gzip -dc "$RUNNER_TEMP/beta8.patch.gz" > "$RUNNER_TEMP/beta8.patch"
           echo "46d818d88f0359f67616806f124dd61bae0a9d8e66f5551b99e7529028bae04d  $RUNNER_TEMP/beta8.patch" | sha256sum -c --strict
+          echo "506d42770328aceaf3f4129af122474e6f0abd7c751d584d8a707b0b94c41aea  patches/beta8/Gradle-9-empty-test-fix.patch" | sha256sum -c --strict
 
           rm -rf extracted
           mkdir extracted
@@ -42,9 +43,12 @@ jobs:
             git apply "$RUNNER_TEMP/beta7.patch"
             git apply --check "$RUNNER_TEMP/beta8.patch"
             git apply "$RUNNER_TEMP/beta8.patch"
+            git apply --check "$GITHUB_WORKSPACE/patches/beta8/Gradle-9-empty-test-fix.patch"
+            git apply "$GITHUB_WORKSPACE/patches/beta8/Gradle-9-empty-test-fix.patch"
             rm -rf .git
             grep -F 'version = "1.0.0-beta.8"' build.gradle.kts
             grep -F 'version: 1.0.0-beta.8' src/main/resources/plugin.yml
+            grep -F 'failOnNoDiscoveredTests = false' build.gradle.kts
             test -f DEVELOPMENT-WORKFLOW.md
             test -f CHANGES-beta.8.md
             test -f src/main/resources/CONFIG-GUIDE.txt
