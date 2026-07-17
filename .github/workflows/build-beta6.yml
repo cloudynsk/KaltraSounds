@@ -1,0 +1,78 @@
+name: Build KaltraSounds beta.6
+
+on:
+  pull_request:
+  push:
+    branches:
+      - agent/build-beta6-java25
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Verify fixed source archive
+        shell: bash
+        run: |
+          echo "f7e287d20906dfaf5daab5a2d25df99c811dfedf5a0e44ed2ef95c36aba51949  KaltraSounds-1.0.0-beta.6-fixed-source.zip" | sha256sum --check --strict
+
+      - name: Extract source
+        shell: bash
+        run: |
+          rm -rf extracted
+          mkdir extracted
+          unzip -q KaltraSounds-1.0.0-beta.6-fixed-source.zip -d extracted
+          SOURCE_DIR="$(find extracted -name build.gradle.kts -type f -printf '%h\n' | head -n 1)"
+          test -n "$SOURCE_DIR"
+          echo "SOURCE_DIR=$SOURCE_DIR" >> "$GITHUB_ENV"
+          echo "Source directory: $SOURCE_DIR"
+
+      - name: Set up Java 25
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.1.0'
+
+      - name: Build against Paper API
+        shell: bash
+        run: gradle -p "$SOURCE_DIR" clean build --stacktrace
+
+      - name: Inspect compiled plugin
+        shell: bash
+        run: |
+          JAR="$(find "$SOURCE_DIR/build/libs" -maxdepth 1 -type f -name 'KaltraSounds-*.jar' | head -n 1)"
+          test -f "$JAR"
+
+          unzip -p "$JAR" plugin.yml | tee plugin.yml.built
+          grep -F "version: 1.0.0-beta.6" plugin.yml.built
+          grep -F "api-version: '26.1'" plugin.yml.built
+
+          if unzip -Z1 "$JAR" | grep -Eq '^(org/bukkit|io/papermc)/'; then
+            echo "The plugin JAR illegally bundles Bukkit or Paper classes." >&2
+            exit 1
+          fi
+
+          mkdir -p dist
+          cp "$JAR" dist/KaltraSounds-1.0.0-beta.6.jar
+          sha256sum dist/KaltraSounds-1.0.0-beta.6.jar | tee dist/KaltraSounds-1.0.0-beta.6.jar.sha256
+          unzip -t dist/KaltraSounds-1.0.0-beta.6.jar
+
+      - name: Upload compiled JAR
+        uses: actions/upload-artifact@v4
+        with:
+          name: KaltraSounds-1.0.0-beta.6
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 30
