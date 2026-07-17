@@ -148,6 +148,8 @@ jobs:
             exit 1
           fi
 
+          cp server.log ../dist/Paper-26.1.1-smoke.log
+
       - name: Upload compiled JAR
         uses: actions/upload-artifact@v4
         with:
