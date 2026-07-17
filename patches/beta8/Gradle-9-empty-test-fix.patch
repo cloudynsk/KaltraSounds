@@ -1,0 +1,15 @@
+--- a/build.gradle.kts
++++ b/build.gradle.kts
+@@ -30,6 +30,12 @@
+     filteringCharset = "UTF-8"
+ }
+ 
++// The verification source is executed by verifySoundIcons rather than JUnit.
++// Gradle 9 otherwise fails the empty Test task before the JavaExec verifier runs.
++tasks.withType<org.gradle.api.tasks.testing.AbstractTestTask>().configureEach {
++    failOnNoDiscoveredTests = false
++}
++
+ tasks.jar {
+     archiveBaseName.set("KaltraSounds")
+     archiveVersion.set(project.version.toString())
