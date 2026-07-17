@@ -1,0 +1,75 @@
+name: Publish KaltraSounds beta.8 source
+
+on:
+  push:
+    branches: [agent/build-beta6-java25]
+  workflow_dispatch:
+
+concurrency:
+  group: kaltrasounds-beta8-source
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  publish-source:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Reconstruct verified beta.8 source
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "f7e287d20906dfaf5daab5a2d25df99c811dfedf5a0e44ed2ef95c36aba51949  KaltraSounds-1.0.0-beta.6-fixed-source.zip" | sha256sum -c --strict
+          cat patches/beta7/chunks/* > "$RUNNER_TEMP/beta7.patch"
+          echo "33c6811382f72dd2f72dd03957a4c1e0ece94cb4f517e59adda72ea933151f01  $RUNNER_TEMP/beta7.patch" | sha256sum -c --strict
+          base64 --decode patches/beta8/KaltraSounds-beta.8.patch.gz.b64 > "$RUNNER_TEMP/beta8.patch.gz"
+          echo "594ffe4ea8ec68bd80b421f1938a1ff1af09e48653b3fdf33767ca2400f12720  $RUNNER_TEMP/beta8.patch.gz" | sha256sum -c --strict
+          gzip -dc "$RUNNER_TEMP/beta8.patch.gz" > "$RUNNER_TEMP/beta8.patch"
+          echo "46d818d88f0359f67616806f124dd61bae0a9d8e66f5551b99e7529028bae04d  $RUNNER_TEMP/beta8.patch" | sha256sum -c --strict
+          echo "506d42770328aceaf3f4129af122474e6f0abd7c751d584d8a707b0b94c41aea  patches/beta8/Gradle-9-empty-test-fix.patch" | sha256sum -c --strict
+
+          rm -rf source
+          mkdir source
+          unzip -q KaltraSounds-1.0.0-beta.6-fixed-source.zip -d source
+          SOURCE_DIR="$(find source -name build.gradle.kts -type f -printf '%h\n' | head -n1)"
+          test -n "$SOURCE_DIR"
+          (
+            cd "$SOURCE_DIR"
+            git init -q
+            git apply "$RUNNER_TEMP/beta7.patch"
+            git apply "$RUNNER_TEMP/beta8.patch"
+            git apply "$GITHUB_WORKSPACE/patches/beta8/Gradle-9-empty-test-fix.patch"
+            rm -rf .git
+          )
+          echo "SOURCE_DIR=$SOURCE_DIR" >> "$GITHUB_ENV"
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.1.0'
+
+      - name: Generate wrapper and publish branch
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gradle -p "$SOURCE_DIR" wrapper --gradle-version 9.1.0 --distribution-type bin
+          cd "$SOURCE_DIR"
+          test -f gradle/wrapper/gradle-wrapper.jar
+          git init -q
+          git config user.name 'KaltraSounds CI'
+          git config user.email 'actions@users.noreply.github.com'
+          git checkout -q -b agent/beta8-source
+          git add -A
+          git add -f gradle/wrapper/gradle-wrapper.jar
+          git commit -q -m 'Publish KaltraSounds beta.8 source'
+          git remote add origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git push --force origin HEAD:refs/heads/agent/beta8-source
