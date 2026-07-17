@@ -1,0 +1,55 @@
+Version: 'KaltraSounds-1'
+Teleport:
+  Enabled: true
+  Cancellable: true
+  Sounds:
+    '1':
+      Sound: ENTITY_ENDERMAN_TELEPORT
+      Volume: 0.9
+      Pitch: 1.0
+      Options:
+        Radius: 15.2
+        Permission Required: playmoresounds.reproduce.teleport
+        Permission To Listen: playmoresounds.listen.teleport
+Player Death:
+  Enabled: true
+  Sounds:
+    '1':
+      Sound: ENTITY_WITHER_SPAWN
+      Volume: 0.2
+Inventory Close:
+  Enabled: true
+  Sounds:
+    '1':
+      Sound: UI_TOAST_OUT
+      Pitch: 2.0
+Change Held Item:
+  Enabled: true
+  Sounds:
+    '1':
+      Sound: item.armor.equip_leather
+      Pitch: 2.0
+      Volume: 0.2
+Drop Item:
+  Enabled: true
+  Sounds:
+    '1':
+      Sound: item.armor.equip_leather
+      Pitch: 1.0
+      Volume: 0.6
+      Options:
+        Radius: 8.0
+Start Flying:
+  Enabled: true
+  Sounds:
+    '1':
+      Sound: ENTITY_ENDER_DRAGON_FLAP
+      Pitch: 1.5
+      Volume: 0.1
+Stop Flying:
+  Enabled: true
+  Sounds:
+    '1':
+      Sound: ENTITY_ENDER_DRAGON_FLAP
+      Pitch: 1.3
+      Volume: 0.1

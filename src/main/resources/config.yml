@@ -1,0 +1,43 @@
+config-version: 1
+language: en-US
+
+migration:
+  auto-import-playmoresounds: true
+  keep-legacy-backup: true
+
+modules:
+  event-sounds: true
+  command-sounds: true
+  chat-sounds: true
+  situational-sounds: true
+  native-regions: true
+  external-regions: true
+  custom-discs: true
+  nbs-player: true
+  nature-sound-replacer: false
+  sound-list-gui: true
+
+performance:
+  location-check-interval-ticks: 10
+  world-time-check-interval-ticks: 20
+  max-scheduled-sounds-per-player: 128
+
+regions:
+  max-area: 15625
+  max-name-characters: 20
+  max-regions-per-player: 5
+  wand:
+    material: FEATHER
+    name: '&6&l&nRegion Selection Tool'
+    glowing: true
+
+list:
+  chat-max-per-page: 12
+  gui-rows-per-page: 5
+
+logging:
+  startup-summary: true
+  validation-errors: true
+  command-actions: true
+  region-transitions: false
+  debug: false

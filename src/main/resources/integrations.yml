@@ -1,0 +1,13 @@
+integrations:
+  packet-events: true
+  worldguard: true
+  redprotect: true
+  essentials: true
+  essentials-chat: true
+  venture-chat: true
+  chat-reaction: true
+  towny-chat: true
+  channels-handler: true
+  authme: true
+  cmi: true
+  supervanish: true

@@ -1,0 +1,35 @@
+KaltraSounds beta.5 region test procedure
+
+1. Start the server normally and run:
+   /pms validate
+   /pms info
+
+2. Create a small test region:
+   /pms region wand
+   Left-click the first corner and right-click the second corner.
+   /pms region create soundtest
+
+3. Assign sounds:
+   /pms region sound soundtest enter BLOCK_NOTE_BLOCK_PLING 1 1
+   /pms region sound soundtest leave BLOCK_NOTE_BLOCK_BASS 1 1
+   /pms region sound soundtest loop BLOCK_NOTE_BLOCK_HARP 0.5 1
+
+4. Walk out and back in several times. Confirm:
+   - Enter plays once.
+   - Leave plays once.
+   - The loop does not stop while still inside.
+   - Leaving and quickly re-entering does not allow an old delayed stop to kill the new loop.
+
+5. Run /pms reload while standing inside the region. Confirm:
+   - Console prints reload start and completion lines.
+   - The loop resumes without replaying the enter sound.
+
+6. Disconnect while inside, reconnect, and inspect the console for region exceptions.
+
+7. Rename and remove:
+   /pms region rename soundtest soundtest2
+   /pms region remove soundtest2
+
+The region transition log can be enabled temporarily with:
+  logging.region-transitions: true
+in plugins/KaltraSounds/config.yml, followed by /pms reload.

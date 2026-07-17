@@ -1,0 +1,64 @@
+name: KaltraSounds
+version: 1.0.0-beta.7
+main: net.kaltra.sounds.KaltraSoundsPlugin
+api-version: '26.1'
+author: Kaltra
+website: https://www.spigotmc.org/resources/playmoresounds-assign-sounds-to-player-events.37429/
+description: Modern all-in-one PlayMoreSounds-compatible sound platform for Paper 26.1.1.
+softdepend: [PacketEvents, WorldGuard, RedProtect, Essentials, EssentialsChat, VentureChat, ChatReaction, TownyChat, AuthMe, AuthMeReloaded, CMI, SuperVanish, PremiumVanish]
+commands:
+  kaltrasounds:
+    aliases: [pms, pmoresounds, sounds, moresounds, ks]
+    description: KaltraSounds administration and player commands.
+    usage: /<command> help
+permissions:
+  playmoresounds.player:
+    default: true
+    children:
+      playmoresounds.help: true
+      playmoresounds.toggle: true
+      playmoresounds.toggle.check: true
+      playmoresounds.list: true
+      playmoresounds.list.gui: true
+      playmoresounds.disc.use: true
+      playmoresounds.disc.list: true
+      playmoresounds.listen.teleport: true
+      playmoresounds.reproduce.teleport: true
+  playmoresounds.admin:
+    default: op
+    children:
+      playmoresounds.player: true
+      playmoresounds.reload: true
+      playmoresounds.edit: true
+      playmoresounds.validate: true
+      playmoresounds.info: true
+      playmoresounds.play: true
+      playmoresounds.play.others: true
+      playmoresounds.stopsound: true
+      playmoresounds.stopsound.others: true
+      playmoresounds.toggle.others: true
+      playmoresounds.toggle.check.others: true
+      playmoresounds.test: true
+      playmoresounds.debug: true
+      playmoresounds.migrate: true
+      playmoresounds.region: true
+      playmoresounds.admin.regions: true
+      playmoresounds.region.wand: true
+      playmoresounds.region.create: true
+      playmoresounds.region.create.unlimited.area: true
+      playmoresounds.region.create.unlimited.regions: true
+      playmoresounds.region.select.overlap: true
+      playmoresounds.region.remove: true
+      playmoresounds.region.rename: true
+      playmoresounds.region.info: true
+      playmoresounds.region.list: true
+      playmoresounds.region.sound: true
+      playmoresounds.region.sound.others: true
+      playmoresounds.region.remove.others: true
+      playmoresounds.region.rename.others: true
+      playmoresounds.region.info.others: true
+      playmoresounds.region.list.others: true
+      playmoresounds.disc.list: true
+      playmoresounds.disc.give: true
+      playmoresounds.disc.create: true
+      playmoresounds.nbs: true

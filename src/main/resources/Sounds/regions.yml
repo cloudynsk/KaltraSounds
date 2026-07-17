@@ -1,0 +1,3 @@
+# Region loop example and settings are documented in LOOPING.md.
+# Fades are replay-volume ramps; Minecraft cannot alter an already-playing sound's volume.
+Version: 'KaltraSounds-1'
