@@ -1,0 +1,34 @@
+KaltraSounds 1.0.0-beta.5
+
+Console and commands
+- /pms reload now logs the actor, requested scope, elapsed time, native-region count, and validation-problem count to console.
+- /pms toggle now logs the actor, target player, and resulting ON/OFF state to console.
+- Plugin disable now logs that region loops, pending sound tasks, NBS playback, and integrations were stopped.
+- New optional config keys:
+    logging.command-actions: true
+    logging.region-transitions: false
+
+Sound-list GUI
+- Replaced the identical music-disc icon with category-based icons selected from the sound name.
+- Examples: experience bottle for XP, ender pearl for teleportation, sword for combat, chest for inventory, water bucket for water, elytra for flight, and note block for music.
+- Modern Paper registry results are no longer duplicated by also adding every legacy constant name. Legacy names still appear when used by configuration.
+- GUI preview reports a chat error when a sound cannot be dispatched.
+
+Region-engine audit and fixes
+- Corrected cuboid boundary checks to use block coordinates exactly, matching selected min/max blocks.
+- Prevented duplicate native-region processing through both KaltraSounds and PlayMoreSounds provider aliases.
+- Fixed loop Stop On Exit being scheduled during initial entry.
+- Cancelled delayed stop tasks when a player re-enters before the delay expires.
+- Cancelled region loop and delayed-stop tasks when a player disconnects.
+- Stopped tracked loop sounds and tasks during reload/disable.
+- Reload now restores loops for players already inside regions without replaying enter sounds.
+- Implemented Prevent Default Sound and legacy Prevent Other Sounds behavior for enter/loop/leave rules.
+- Native regions without a specific region rule can still trigger the global Region Enter/Leave rules.
+- Removing or renaming a native region safely retires active loops.
+- Renaming now migrates the matching KaltraSounds/PlayMoreSounds region sound configuration.
+- Removing now deletes stale native region sound configuration.
+- Added region-name validation to prevent broken YAML paths.
+- Added overlap detection with playmoresounds.region.select.overlap bypass permission.
+- Added min/max normalization and validation warnings for manually inverted coordinates.
+- WorldGuard and RedProtect reflection failures now produce one useful warning instead of being silently swallowed forever.
+- Added per-action region permission checks.

@@ -1,0 +1,50 @@
+# KaltraSounds main configuration.
+# Run /pms validate after editing. Twenty server ticks are approximately one second.
+# A fuller plain-English reference is generated as plugins/KaltraSounds/CONFIG-GUIDE.txt.
+config-version: 1
+language: en-US
+
+migration:
+  auto-import-playmoresounds: true
+  keep-legacy-backup: true
+
+modules:
+  event-sounds: true
+  command-sounds: true
+  chat-sounds: true
+  situational-sounds: true
+  native-regions: true
+  external-regions: true
+  custom-discs: true
+  # NBS = Note Block Studio song playback. Put .nbs files in plugins/KaltraSounds/nbs.
+  # The generated nbs/README.txt explains how songs and custom instruments work.
+  nbs-player: true
+  nature-sound-replacer: false
+  sound-list-gui: true
+
+performance:
+  location-check-interval-ticks: 10
+  world-time-check-interval-ticks: 20
+  max-scheduled-sounds-per-player: 128
+
+regions:
+  max-area: 15625
+  max-name-characters: 20
+  max-regions-per-player: 5
+  wand:
+    material: FEATHER
+    name: '&6&l&nRegion Selection Tool'
+    glowing: true
+
+list:
+  # Number of sound names shown per text-list page.
+  chat-max-per-page: 12
+  # GUI content rows. The sixth inventory row is reserved for navigation/search.
+  gui-rows-per-page: 5
+
+logging:
+  startup-summary: true
+  validation-errors: true
+  command-actions: true
+  region-transitions: false
+  debug: false

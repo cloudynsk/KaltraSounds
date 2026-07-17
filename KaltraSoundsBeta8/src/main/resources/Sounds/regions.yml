@@ -1,0 +1,37 @@
+# Region loop example and settings are documented in LOOPING.md.
+# Fades are replay-volume ramps; Minecraft cannot alter an already-playing sound's volume.
+Version: 'KaltraSounds-1'
+
+# Region loop example (disabled):
+# example:
+#   Enabled: false
+#   Loop:
+#     Enabled: true
+#     Delay: 0                 # ticks before the first replay
+#     Period: 100              # base ticks between replays
+#     Period Randomness: 0     # random +/- ticks per replay
+#     Maximum Plays: 0         # 0 = unlimited
+#     Fade In:
+#       Enabled: false
+#       Plays: 3
+#       Start Volume Multiplier: 0.2
+#       Curve: SMOOTHSTEP      # LINEAR, SMOOTHSTEP, or EXPONENTIAL
+#     Stop On Exit:
+#       Enabled: true
+#       Delay: 0
+#       Fade Out:
+#         Enabled: false
+#         Plays: 3
+#         Period: 20
+#         End Volume Multiplier: 0.0
+#         Curve: SMOOTHSTEP
+#     Sounds:
+#       '1':
+#         Sound: ambient.cave
+#         Volume: 1.0
+#         Pitch: 1.0
+#         Options:
+#           Radius: 0
+#
+# Fades change volume between replays. Minecraft cannot continuously change the
+# volume of a sound that is already playing, so use fades with short loop clips.

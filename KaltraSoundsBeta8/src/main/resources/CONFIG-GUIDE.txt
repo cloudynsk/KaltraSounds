@@ -1,0 +1,45 @@
+KALTRASOUNDS CONFIGURATION GUIDE
+================================
+
+BASIC TERMS
+-----------
+Sound: A Minecraft sound key such as entity.player.levelup or a namespaced
+resource-pack sound such as kaltra:ambient.forest.
+
+Volume: Playback volume. 1.0 is the normal configured volume. Higher values can
+also increase how far a sound is audible depending on Minecraft behavior.
+
+Pitch: Playback speed/pitch. Minecraft normally accepts roughly 0.5 to 2.0.
+
+Radius: When greater than 0, only players inside that radius are targeted.
+A value of 0 commonly means use the event's normal recipient behavior.
+
+Delay: Scheduler delay in server ticks. 20 ticks are approximately one second.
+
+NBS: Note Block Studio song format. Put .nbs files in plugins/KaltraSounds/nbs.
+See nbs/README.txt for examples and limitations.
+
+LOOPS
+-----
+Period: Base ticks between loop replays.
+Period Randomness: Random plus/minus tick variation per replay.
+Maximum Plays: 0 means unlimited; any positive number stops after that many plays.
+Fade In/Fade Out: Volume changes between repeated plays. Minecraft cannot alter
+one sound instance after it has started, so these controls are best for short,
+seamless clips. Long music files should normally use immediate Stop On Exit.
+Curve: LINEAR, SMOOTHSTEP, or EXPONENTIAL.
+
+FILES
+-----
+config.yml: Modules, performance limits, region limits, GUI size and logging.
+sounds.yml: General event sounds such as teleport, death and inventory events.
+Sounds/*.yml: Situational rules, biome loops and region loops.
+discs.yml: Custom jukebox discs using one sound, multiple sounds, or an NBS song.
+integrations.yml: Enables hooks for plugins that are present on the server.
+nature-replacements.yml: Optional packet-level replacement rules.
+messages.yml: Command and GUI text.
+
+VALIDATION
+----------
+Run /pms validate after editing files. Use /pms reload all rather than Bukkit's
+/reload command. Keep a backup before changing production configuration.

@@ -1,0 +1,27 @@
+# Custom jukebox discs.
+# Use either `sound`, a numbered `sounds` section, or `nbs`; do not combine them.
+# NBS means a Note Block Studio .nbs song stored in plugins/KaltraSounds/nbs.
+# When `nbs` is present it takes priority over normal sound entries.
+discs:
+  example:
+    enabled: false
+    material: MUSIC_DISC_13
+    name: '&bExample Custom Disc'
+    lore:
+      - '&7Insert into a jukebox to play.'
+    sound: minecraft:music_disc.cat
+    volume: 1.0
+    pitch: 1.0
+    radius: 24.0
+
+
+# NBS example (disabled):
+#  nbs-example:
+#    enabled: false
+#    material: MUSIC_DISC_CAT
+#    name: '&bExample NBS Disc'
+#    lore:
+#      - '&7Plays a Note Block Studio song.'
+#    nbs: example-song.nbs
+#    volume: 1.0
+#    radius: 24.0
