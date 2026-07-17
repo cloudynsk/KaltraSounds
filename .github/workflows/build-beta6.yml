@@ -63,7 +63,8 @@ jobs:
           ! unzip -Z1 "$JAR" | grep -Eq '^(org/bukkit|io/papermc)/'
           mkdir -p dist
           cp "$JAR" dist/KaltraSounds-1.0.0-beta.7.jar
-          sha256sum dist/KaltraSounds-1.0.0-beta.7.jar | tee dist/KaltraSounds-1.0.0-beta.7.jar.sha256
+          HASH="$(sha256sum dist/KaltraSounds-1.0.0-beta.7.jar | awk '{print $1}')"
+          printf '%s  KaltraSounds-1.0.0-beta.7.jar\n' "$HASH" | tee dist/KaltraSounds-1.0.0-beta.7.jar.sha256
           unzip -t dist/KaltraSounds-1.0.0-beta.7.jar
           cp "$SOURCE_DIR/LOOPING.md" "$SOURCE_DIR/CHANGES-beta.7.md" dist/
           (cd "$SOURCE_DIR" && zip -qr "$GITHUB_WORKSPACE/dist/KaltraSounds-1.0.0-beta.7-source.zip" . -x 'build/*' '.gradle/*' '*.class' '*.jar')
