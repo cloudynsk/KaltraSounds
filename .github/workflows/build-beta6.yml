@@ -23,10 +23,8 @@ jobs:
         run: |
           set -euo pipefail
           echo "f7e287d20906dfaf5daab5a2d25df99c811dfedf5a0e44ed2ef95c36aba51949  KaltraSounds-1.0.0-beta.6-fixed-source.zip" | sha256sum -c --strict
-
           cat patches/beta7/chunks/* > "$RUNNER_TEMP/beta7.patch"
           echo "33c6811382f72dd2f72dd03957a4c1e0ece94cb4f517e59adda72ea933151f01  $RUNNER_TEMP/beta7.patch" | sha256sum -c --strict
-
           base64 --decode patches/beta8/KaltraSounds-beta.8.patch.gz.b64 > "$RUNNER_TEMP/beta8.patch.gz"
           echo "594ffe4ea8ec68bd80b421f1938a1ff1af09e48653b3fdf33767ca2400f12720  $RUNNER_TEMP/beta8.patch.gz" | sha256sum -c --strict
           gzip -dc "$RUNNER_TEMP/beta8.patch.gz" > "$RUNNER_TEMP/beta8.patch"
@@ -37,7 +35,6 @@ jobs:
           unzip -q KaltraSounds-1.0.0-beta.6-fixed-source.zip -d extracted
           SOURCE_DIR="$(find extracted -name build.gradle.kts -type f -printf '%h\n' | head -n1)"
           test -n "$SOURCE_DIR"
-
           (
             cd "$SOURCE_DIR"
             git init -q
@@ -54,7 +51,6 @@ jobs:
             test -f src/main/resources/nbs/README.txt
             test -f src/test/java/net/kaltra/sounds/SoundIconResolverVerification.java
           )
-
           echo "SOURCE_DIR=$SOURCE_DIR" >> "$GITHUB_ENV"
 
       - uses: actions/setup-java@v4
@@ -66,16 +62,23 @@ jobs:
         with:
           gradle-version: '9.1.0'
 
-      - name: Generate wrapper and build
+      - name: Generate Gradle Wrapper
+        shell: bash
+        run: gradle -p "$SOURCE_DIR" wrapper --gradle-version 9.1.0 --distribution-type bin
+
+      - name: Build and verify beta.8
         shell: bash
         run: |
-          set -euo pipefail
-          gradle -p "$SOURCE_DIR" wrapper --gradle-version 9.1.0 --distribution-type bin
+          set +e
+          mkdir -p dist
           (
             cd "$SOURCE_DIR"
             chmod +x gradlew
             ./gradlew clean build --stacktrace
-          )
+          ) > dist/Gradle-beta8.log 2>&1
+          STATUS=$?
+          tail -n 160 dist/Gradle-beta8.log
+          exit "$STATUS"
 
       - name: Inspect and package beta.8
         shell: bash
@@ -88,8 +91,6 @@ jobs:
           grep -F "api-version: '26.1'" plugin.yml.built
           ! unzip -Z1 "$JAR" | grep -Eq '^(org/bukkit|io/papermc)/'
           unzip -t "$JAR"
-
-          mkdir -p dist
           cp "$JAR" dist/KaltraSounds-1.0.0-beta.8.jar
           HASH="$(sha256sum dist/KaltraSounds-1.0.0-beta.8.jar | awk '{print $1}')"
           printf '%s  KaltraSounds-1.0.0-beta.8.jar\n' "$HASH" > dist/KaltraSounds-1.0.0-beta.8.jar.sha256
@@ -112,33 +113,28 @@ jobs:
           JSON="$(curl -fsS -H "User-Agent: $UA" https://fill.papermc.io/v3/projects/paper/versions/26.1.1/builds)"
           URL="$(printf '%s' "$JSON" | jq -r 'first(.[] | select(.channel == "STABLE") | .downloads["server:default"].url) // .[0].downloads["server:default"].url // empty')"
           test -n "$URL"
-
           mkdir -p smoke/plugins
           curl -fL -H "User-Agent: $UA" -o smoke/paper.jar "$URL"
           cp dist/KaltraSounds-1.0.0-beta.8.jar smoke/plugins/
           printf 'eula=true\n' > smoke/eula.txt
           printf 'online-mode=false\nserver-port=25565\nmax-players=1\nview-distance=2\nsimulation-distance=2\n' > smoke/server.properties
-
           cd smoke
           mkfifo console
           exec 3<>console
           java -Xms1G -Xmx2G -jar paper.jar --nogui <console >server.log 2>&1 &
           PID=$!
           trap 'printf "stop\n" >&3 2>/dev/null || true; sleep 3; kill $PID 2>/dev/null || true' EXIT
-
           for _ in $(seq 1 300); do
             grep -q 'Done (' server.log && break
             kill -0 "$PID" 2>/dev/null || { cat server.log; exit 1; }
             sleep 1
           done
           grep -q 'Done (' server.log
-
           printf 'pms info\npms validate\npms reload all\npms validate\n' >&3
           sleep 5
           printf 'stop\n' >&3
           wait "$PID"
           trap - EXIT
-
           cat server.log
           grep -F 'KaltraSounds enabled:' server.log
           grep -F 'KaltraSounds 1.0.0-beta.8' server.log
@@ -150,6 +146,7 @@ jobs:
           cp server.log ../dist/Paper-26.1.1-beta.8-smoke.log
 
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: KaltraSounds-1.0.0-beta.8
           path: dist/*
