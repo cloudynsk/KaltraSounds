@@ -1,0 +1,208 @@
+name: Materialize KaltraSounds source
+
+on:
+  push:
+    branches:
+      - agent/build-beta6-java25
+    paths:
+      - .github/workflows/materialize-source.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  materialize:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.1.0'
+
+      - name: Reconstruct verified beta.7 source
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "f7e287d20906dfaf5daab5a2d25df99c811dfedf5a0e44ed2ef95c36aba51949  KaltraSounds-1.0.0-beta.6-fixed-source.zip" | sha256sum --check --strict
+          cat patches/beta7/chunks/* > "$RUNNER_TEMP/beta7.patch"
+          echo "33c6811382f72dd2f72dd03957a4c1e0ece94cb4f517e59adda72ea933151f01  $RUNNER_TEMP/beta7.patch" | sha256sum --check --strict
+
+          rm -rf "$RUNNER_TEMP/source"
+          mkdir -p "$RUNNER_TEMP/source"
+          unzip -q KaltraSounds-1.0.0-beta.6-fixed-source.zip -d "$RUNNER_TEMP/source"
+          SOURCE_DIR="$(find "$RUNNER_TEMP/source" -name build.gradle.kts -type f -printf '%h\n' | head -n 1)"
+          test -n "$SOURCE_DIR"
+
+          (
+            cd "$SOURCE_DIR"
+            git init -q
+            git apply --check "$RUNNER_TEMP/beta7.patch"
+            git apply "$RUNNER_TEMP/beta7.patch"
+            gradle wrapper --gradle-version 9.1.0 --distribution-type bin
+            mkdir -p .github/workflows
+            cat > .github/workflows/build.yml <<'BUILD'
+          name: Build KaltraSounds
+
+          on:
+            push:
+              branches: [develop]
+            pull_request:
+              branches: [main, develop]
+            workflow_dispatch:
+
+          permissions:
+            contents: read
+
+          jobs:
+            build:
+              runs-on: ubuntu-latest
+              steps:
+                - uses: actions/checkout@v4
+
+                - uses: actions/setup-java@v4
+                  with:
+                    distribution: temurin
+                    java-version: '25'
+
+                - uses: gradle/actions/setup-gradle@v4
+
+                - name: Build and test
+                  run: ./gradlew clean build --no-daemon --stacktrace
+
+                - name: Inspect JAR
+                  shell: bash
+                  run: |
+                    set -euo pipefail
+                    JAR="$(find build/libs -maxdepth 1 -type f -name 'KaltraSounds-*.jar' | head -n 1)"
+                    test -f "$JAR"
+                    VERSION="$(unzip -p "$JAR" plugin.yml | sed -n 's/^version:[[:space:]]*//p' | tr -d "'\"" | head -n 1)"
+                    test -n "$VERSION"
+                    unzip -p "$JAR" plugin.yml | tee plugin.yml.built
+                    grep -F "api-version: '26.1'" plugin.yml.built
+                    if unzip -Z1 "$JAR" | grep -Eq '^(org/bukkit|io/papermc)/'; then
+                      echo 'The plugin JAR illegally bundles Bukkit or Paper classes.' >&2
+                      exit 1
+                    fi
+                    mkdir -p dist
+                    cp "$JAR" "dist/KaltraSounds-$VERSION.jar"
+                    (
+                      cd dist
+                      sha256sum "KaltraSounds-$VERSION.jar" > "KaltraSounds-$VERSION.jar.sha256"
+                    )
+                    unzip -t "dist/KaltraSounds-$VERSION.jar"
+                    zip -qr "dist/KaltraSounds-$VERSION-source.zip" . \
+                      -x 'build/*' '.gradle/*' '.git/*' 'dist/*' '*.class' '*.jar'
+                    echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+
+                - name: Smoke-test on Paper 26.1.1
+                  shell: bash
+                  run: |
+                    set -euo pipefail
+                    USER_AGENT="KaltraSounds-CI/1.0 (https://github.com/${GITHUB_REPOSITORY})"
+                    BUILDS_JSON="$(curl --fail --silent --show-error -H "User-Agent: $USER_AGENT" \
+                      https://fill.papermc.io/v3/projects/paper/versions/26.1.1/builds)"
+                    PAPER_URL="$(printf '%s' "$BUILDS_JSON" | jq -r \
+                      'first(.[] | select(.channel == "STABLE") | .downloads["server:default"].url) // .[0].downloads["server:default"].url // empty')"
+                    test -n "$PAPER_URL"
+
+                    mkdir -p smoke/plugins/KaltraSounds/Sounds
+                    curl --fail --location --show-error -H "User-Agent: $USER_AGENT" -o smoke/paper.jar "$PAPER_URL"
+                    cp "dist/KaltraSounds-$VERSION.jar" smoke/plugins/
+                    printf 'eula=true\n' > smoke/eula.txt
+                    cat > smoke/server.properties <<'PROPERTIES'
+                    online-mode=false
+                    server-port=25565
+                    max-players=1
+                    view-distance=2
+                    simulation-distance=2
+                    spawn-protection=0
+                    enable-query=false
+                    enable-rcon=false
+                    PROPERTIES
+
+                    cd smoke
+                    mkfifo console
+                    exec 3<>console
+                    java -Xms1G -Xmx2G -jar paper.jar --nogui <console >server.log 2>&1 &
+                    SERVER_PID=$!
+                    cleanup() {
+                      if kill -0 "$SERVER_PID" 2>/dev/null; then
+                        printf 'stop\n' >&3 || true
+                        sleep 5
+                        kill "$SERVER_PID" 2>/dev/null || true
+                      fi
+                    }
+                    trap cleanup EXIT
+
+                    READY=false
+                    for _ in $(seq 1 300); do
+                      if grep -q 'Done (' server.log; then READY=true; break; fi
+                      if ! kill -0 "$SERVER_PID" 2>/dev/null; then
+                        cat server.log
+                        exit 1
+                      fi
+                      sleep 1
+                    done
+                    test "$READY" = true
+
+                    printf 'pms info\n' >&3
+                    printf 'pms validate\n' >&3
+                    printf 'pms reload all\n' >&3
+                    sleep 2
+                    printf 'pms validate\n' >&3
+                    sleep 3
+                    printf 'stop\n' >&3
+                    wait "$SERVER_PID"
+                    trap - EXIT
+
+                    cat server.log
+                    grep -F 'KaltraSounds enabled:' server.log
+                    test "$(grep -Fc 'Configuration validation passed.' server.log)" -ge 2
+                    grep -F 'KaltraSounds disabled; scheduled sounds, region loops and integrations were stopped.' server.log
+                    if grep -E 'KaltraSounds failed to enable|Could not load.*KaltraSounds|NoClassDefFoundError|NoSuchMethodError|UnsupportedClassVersionError|Reload failed|Configuration problem' server.log; then
+                      exit 1
+                    fi
+                    cp server.log "../dist/Paper-26.1.1-smoke.log"
+
+                - uses: actions/upload-artifact@v4
+                  with:
+                    name: KaltraSounds-${{ env.VERSION }}
+                    path: dist/*
+                    if-no-files-found: error
+                    retention-days: 30
+          BUILD
+
+            cat > DEVELOPMENT-WORKFLOW.md <<'DOC'
+          # Development workflow
+
+          This repository keeps the complete plugin source on the `develop` branch.
+
+          1. Edit source files directly on `develop` or a short-lived feature branch.
+          2. Bump the version in `build.gradle.kts` and `src/main/resources/plugin.yml`.
+          3. Add or update tests for the changed behavior.
+          4. Push the branch. GitHub Actions uses Java 25, the committed Gradle Wrapper, and Gradle dependency caching.
+          5. The workflow runs `./gradlew clean build`, inspects the JAR, boots Paper 26.1.1, runs validation/reload checks, and uploads the JAR, source ZIP, checksum, and smoke log.
+          6. Download and inspect the artifact before server testing.
+
+          Do not return to ZIP patch fragments unless direct source commits are impossible. The source tree is the canonical development input.
+          DOC
+
+            rm -rf .git
+            git init -q
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git add -A
+            git commit -m 'Materialize verified beta.7 source tree with Gradle wrapper'
+            git branch -M develop
+            git remote add origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+            git push --force origin develop
+          )
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
