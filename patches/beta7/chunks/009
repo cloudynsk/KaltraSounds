@@ -1,0 +1,64 @@
+eturn soundKeys;
++    }
++
++    LoopSettings settings() {
++        return settings;
++    }
++
++    void start() {
++        if (!valid() || cancelled) return;
++        schedule(settings.delay());
++    }
++
++    void cancel(boolean stopSounds) {
++        if (cancelled) return;
++        cancelled = true;
++        if (task != null) task.cancel();
++        task = null;
++        if (stopSounds && player.isOnline()) {
++            for (String sound : soundKeys) engine.stop(player, sound);
++        }
++    }
++
++    private void schedule(long delay) {
++        try {
++            task = plugin.getServer().getScheduler().runTaskLater(plugin, this::runCycle, Math.max(0L, delay));
++        } catch (RuntimeException | LinkageError ex) {
++            plugin.getLogger().warning("Could not schedule loop for " + player.getName() + ": " + ex.getMessage());
++            finishNaturally();
++        }
++    }
++
++    private void runCycle() {
++        task = null;
++        if (cancelled) return;
++        if (!player.isOnline() || !activeCheck.getAsBoolean()) {
++            finishNaturally();
++            return;
++        }
++
++        plays++;
++        Location origin = player.getLocation();
++        engine.playRuleScaled(rule, player, origin, settings.fadeInMultiplier(plays));
++
++        if (settings.maximumPlays() > 0 && plays >= settings.maximumPlays()) {
++            finishNaturally();
++            return;
++        }
++        schedule(settings.nextPeriod());
++    }
++
++    private void finishNaturally() {
++        if (cancelled) return;
++        cancelled = true;
++        if (task != null) task.cancel();
++        task = null;
++        onFinished.accept(this);
++    }
++}
+diff --git a/src/main/java/net/kaltra/sounds/SituationalModule.java b/src/main/java/net/kaltra/sounds/SituationalModule.java
+index fbd5e52..b3679c1 100644
+--- a/src/main/java/net/kaltra/sounds/SituationalModule.java
++++ b/src/main/java/net/kaltra/sounds/SituationalModule.java
+@@ -28,7 +28,7 @@ final class SituationalModule {
+ 

@@ -1,0 +1,17 @@
+itTask>> tasks : biomeStopTasks.values()) {
+-            for (List<BukkitTask> group : tasks.values()) for (BukkitTask task : group) task.cancel();
++            for (List<BukkitTask> group : tasks.values()) LoopExitController.cancel(group);
+         }
+         biomeLoops.clear();
+         biomeStopTasks.clear();
+@@ -242,10 +244,10 @@ final class SituationalModule {
+     }
+ 
+     private void clearPlayerState(UUID id) {
+-        Map<String, BukkitTask> tasks = biomeLoops.remove(id);
+-        if (tasks != null) for (BukkitTask task : tasks.values()) task.cancel();
++        Map<String, RepeatingSoundLoop> loops = biomeLoops.remove(id);
++        if (loops != null) for (RepeatingSoundLoop loop : loops.values()) loop.cancel(false);
+         Map<String, List<BukkitTask>> stops = biomeStopTasks.remove(id);
+-        if (stops != null) for (List<BukkitTask> group : stops.values()) for (BukkitTask task : group) task.cancel();
++        if (stops != null) for (List<BukkitTask> group : stops.values(

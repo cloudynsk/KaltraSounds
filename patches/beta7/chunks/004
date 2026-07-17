@@ -1,0 +1,117 @@
+ed() || fadeIn.plays() <= 1 || playNumber >= fadeIn.plays()) return 1.0f;
++        double progress = Math.max(0.0, (playNumber - 1.0) / (fadeIn.plays() - 1.0));
++        double curved = fadeIn.curve().apply(progress);
++        return (float) (fadeIn.startMultiplier() + ((1.0 - fadeIn.startMultiplier()) * curved));
++    }
++
++    float fadeOutMultiplier(int playNumber) {
++        FadeOut fadeOut = stopOnExit.fadeOut();
++        if (!fadeOut.enabled() || fadeOut.plays() <= 0) return 0.0f;
++        double progress = Math.min(1.0, Math.max(0.0, playNumber / (double) fadeOut.plays()));
++        double curved = fadeOut.curve().apply(progress);
++        return (float) (1.0 + ((fadeOut.endMultiplier() - 1.0) * curved));
++    }
++
++    private static int clampFadePlays(int value) {
++        return Math.max(0, Math.min(MAX_FADE_PLAYS, value));
++    }
++
++    private static float multiplier(double value) {
++        if (!Double.isFinite(value)) return 0.0f;
++        return (float) Math.max(0.0, Math.min(1.0, value));
++    }
++
++    private static ConfigurationSection section(ConfigurationSection source, String name) {
++        if (source == null) return null;
++        for (String key : source.getKeys(false)) {
++            if (key.equalsIgnoreCase(name)) return source.getConfigurationSection(key);
++        }
++        return null;
++    }
++
++    private static boolean booleanValue(ConfigurationSection source, String name, boolean fallback) {
++        if (source == null) return fallback;
++        for (String key : source.getKeys(false)) if (key.equalsIgnoreCase(name)) return source.getBoolean(key, fallback);
++        return fallback;
++    }
++
++    private static int intValue(ConfigurationSection source, String name, int fallback) {
++        if (source == null) return fallback;
++        for (String key : source.getKeys(false)) if (key.equalsIgnoreCase(name)) return source.getInt(key, fallback);
++        return fallback;
++    }
++
++    private static long longValue(ConfigurationSection source, String name, long fallback) {
++        if (source == null) return fallback;
++        for (String key : source.getKeys(false)) if (key.equalsIgnoreCase(name)) return source.getLong(key, fallback);
++        return fallback;
++    }
++
++    private static double doubleValue(ConfigurationSection source, String name, double fallback) {
++        if (source == null) return fallback;
++        for (String key : source.getKeys(false)) if (key.equalsIgnoreCase(name)) return source.getDouble(key, fallback);
++        return fallback;
++    }
++
++    private static String stringValue(ConfigurationSection source, String name, String fallback) {
++        if (source == null) return fallback;
++        for (String key : source.getKeys(false)) if (key.equalsIgnoreCase(name)) return source.getString(key, fallback);
++        return fallback;
++    }
++
++    record FadeIn(boolean enabled, int plays, float startMultiplier, Curve curve) {}
++    record StopOnExit(boolean enabled, long delay, FadeOut fadeOut) {}
++    record FadeOut(boolean enabled, int plays, long period, float endMultiplier, Curve curve) {}
++
++    enum Curve {
++        LINEAR,
++        SMOOTHSTEP,
++        EXPONENTIAL;
++
++        static Curve parse(String value) {
++            if (value == null) return SMOOTHSTEP;
++            try {
++                return valueOf(value.trim().replace('-', '_').replace(' ', '_').toUpperCase(Locale.ROOT));
++            } catch (IllegalArgumentException ignored) {
++                return SMOOTHSTEP;
++            }
++        }
++
++        double apply(double value) {
++            double t = Math.max(0.0, Math.min(1.0, value));
++            return switch (this) {
++                case LINEAR -> t;
++                case SMOOTHSTEP -> t * t * (3.0 - (2.0 * t));
++                case EXPONENTIAL -> (Math.exp(4.0 * t) - 1.0) / (Math.exp(4.0) - 1.0);
++            };
++        }
++    }
++}
+diff --git a/src/main/java/net/kaltra/sounds/RegionModule.java b/src/main/java/net/kaltra/sounds/RegionModule.java
+index 65090f0..dfcf825 100644
+--- a/src/main/java/net/kaltra/sounds/RegionModule.java
++++ b/src/main/java/net/kaltra/sounds/RegionModule.java
+@@ -38,12 +38,11 @@ final class RegionModule {
+     private final Map<UUID, Location> pos1 = new HashMap<>();
+     private final Map<UUID, Location> pos2 = new HashMap<>();
+     private final Map<UUID, Set<String>> active = new HashMap<>();
+-    private final Map<UUID, Map<String, LoopHandle>> loops = new HashMap<>();
+-    private final Map<UUID, Map<String, BukkitTask>> pendingStops = new HashMap<>();
++    private final Map<UUID, Map<String, RepeatingSoundLoop>> loops = new HashMap<>();
++    private final Map<UUID, Map<String, List<BukkitTask>>> pendingStops = new HashMap<>();
+     private final Set<String> warnedIntegrationFailures = new HashSet<>();
+     private BukkitTask task;
+ 
+-    private record LoopHandle(BukkitTask task, List<String> sounds) {}
+ 
+     RegionModule(JavaPlugin plugin, ConfigHub configs, SoundEngine engine) {
+         this.plugin = plugin;
+@@ -96,15 +95,13 @@ final class RegionModule {
+     void stop() {
+         if (task != null) task.cancel();
+         task = null;
+-        for (Map.Entry<UUID, Map<String, LoopHandle>> playerEntry : loops.entrySet()) {
+-            Player player = onlinePlayer(playerEntry.getKey());
+-            for (LoopHandle handle : playerEntry.getValue().values()) {
+-                handle.task().cancel();
+-                if (player != null) for (String sound : handle.sounds()) engine.stop

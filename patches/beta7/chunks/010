@@ -1,0 +1,17 @@
+    private final ConfigHub configs;
+     private final SoundEngine engine;
+     private final Map<UUID, String> lastBiome = new HashMap<>();
+-    private final Map<UUID, Map<String, BukkitTask>> biomeLoops = new HashMap<>();
++    private final Map<UUID, Map<String, RepeatingSoundLoop>> biomeLoops = new HashMap<>();
+     private final Map<UUID, Map<String, List<BukkitTask>>> biomeStopTasks = new HashMap<>();
+     private final Map<String, Long> lastWorldTime = new HashMap<>();
+     private BukkitTask locationTask;
+@@ -56,9 +56,11 @@ final class SituationalModule {
+         if (timeTask != null) timeTask.cancel();
+         locationTask = null;
+         timeTask = null;
+-        for (Map<String, BukkitTask> tasks : biomeLoops.values()) for (BukkitTask task : tasks.values()) task.cancel();
++        for (Map<String, RepeatingSoundLoop> loops : biomeLoops.values()) {
++            for (RepeatingSoundLoop loop : loops.values()) loop.cancel(true);
++        }
+         for (Map<String, List<Bukk

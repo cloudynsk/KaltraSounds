@@ -1,0 +1,101 @@
+tion.getConfigurationSection(key);
+             if (child == null) continue;
++            if (key.equalsIgnoreCase("Loop")) validateLoopSettings(file, next, child, problems);
+             ConfigurationSection sounds = child.getConfigurationSection("Sounds");
+             if (sounds != null) {
+                 for (String id : sounds.getKeys(false)) {
+@@ -270,6 +271,57 @@ final class ConfigHub {
+         }
+     }
+ 
++    private void validateLoopSettings(String file, String path, ConfigurationSection loop, List<String> problems) {
++        String base = file + ": " + path;
++        long delay = loop.getLong("Delay", 0L);
++        long period = loop.getLong("Period", 100L);
++        long randomness = loop.getLong("Period Randomness", 0L);
++        int maximumPlays = loop.getInt("Maximum Plays", 0);
++        if (delay < 0L) problems.add(base + ".Delay cannot be negative");
++        if (period < 1L) problems.add(base + ".Period must be at least 1 tick");
++        if (randomness < 0L) problems.add(base + ".Period Randomness cannot be negative");
++        if (maximumPlays < 0) problems.add(base + ".Maximum Plays cannot be negative (0 means unlimited)");
++
++        ConfigurationSection fadeIn = sectionIgnoreCase(loop, "Fade In");
++        if (fadeIn != null && fadeIn.getBoolean("Enabled", false)) {
++            int plays = fadeIn.getInt("Plays", 3);
++            double start = fadeIn.getDouble("Start Volume Multiplier", 0.2);
++            if (plays < 2 || plays > 1_000) problems.add(base + ".Fade In.Plays must be between 2 and 1000");
++            if (!validMultiplier(start)) problems.add(base + ".Fade In.Start Volume Multiplier must be finite and between 0 and 1");
++            validateFadeCurve(base + ".Fade In.Curve", fadeIn.getString("Curve", "SMOOTHSTEP"), problems);
++            if (maximumPlays > 0 && plays > maximumPlays) {
++                problems.add(base + ": Fade In.Plays exceeds Maximum Plays, so full volume will never be reached");
++            }
++        }
++
++        ConfigurationSection stop = sectionIgnoreCase(loop, "Stop On Exit");
++        if (stop == null) return;
++        long stopDelay = stop.getLong("Delay", 0L);
++        if (stopDelay < 0L) problems.add(base + ".Stop On Exit.Delay cannot be negative");
++        ConfigurationSection fadeOut = sectionIgnoreCase(stop, "Fade Out");
++        if (fadeOut != null && fadeOut.getBoolean("Enabled", false)) {
++            if (!stop.getBoolean("Enabled", false)) problems.add(base + ".Stop On Exit.Fade Out is enabled while Stop On Exit is disabled");
++            int plays = fadeOut.getInt("Plays", 3);
++            long fadePeriod = fadeOut.getLong("Period", period);
++            double end = fadeOut.getDouble("End Volume Multiplier", 0.0);
++            if (plays < 1 || plays > 1_000) problems.add(base + ".Stop On Exit.Fade Out.Plays must be between 1 and 1000");
++            if (fadePeriod < 1L) problems.add(base + ".Stop On Exit.Fade Out.Period must be at least 1 tick");
++            if (!validMultiplier(end)) problems.add(base + ".Stop On Exit.Fade Out.End Volume Multiplier must be finite and between 0 and 1");
++            validateFadeCurve(base + ".Stop On Exit.Fade Out.Curve", fadeOut.getString("Curve", "SMOOTHSTEP"), problems);
++        }
++    }
++
++    private static void validateFadeCurve(String path, String value, List<String> problems) {
++        String normalized = value == null ? "" : value.trim().replace('-', '_').replace(' ', '_').toUpperCase(Locale.ROOT);
++        if (!Set.of("LINEAR", "SMOOTHSTEP", "EXPONENTIAL").contains(normalized)) {
++            problems.add(path + " must be LINEAR, SMOOTHSTEP, or EXPONENTIAL");
++        }
++    }
++
++    private static boolean validMultiplier(double value) {
++        return Double.isFinite(value) && value >= 0.0 && value <= 1.0;
++    }
++
+     private void validateDiscs(List<String> problems) {
+         ConfigurationSection root = discs.getConfigurationSection("discs");
+         if (root == null) return;
+diff --git a/src/main/java/net/kaltra/sounds/LoopExitController.java b/src/main/java/net/kaltra/sounds/LoopExitController.java
+new file mode 100644
+index 0000000..dfedb58
+--- /dev/null
++++ b/src/main/java/net/kaltra/sounds/LoopExitController.java
+@@ -0,0 +1,87 @@
++package net.kaltra.sounds;
++
++import org.bukkit.configuration.ConfigurationSection;
++import org.bukkit.entity.Player;
++import org.bukkit.plugin.java.JavaPlugin;
++import org.bukkit.scheduler.BukkitTask;
++
++import java.util.ArrayList;
++import java.util.List;
++
++final class LoopExitController {
++    private LoopExitController() {}
++
++    static List<BukkitTask> schedule(JavaPlugin plugin, SoundEngine engine, Player player,
++                                     ConfigurationSection loop, List<String> sounds, Runnable cleanup) {
++        if (loop == null || sounds.isEmpty()) return List.of();
++        LoopSettings settings = LoopSettings.from(loop);
++        LoopSettings.StopOnExit stop = settings.stopOnExit();
++        if (!stop.enabled()) return List.of();
++
++        LoopSettings.FadeOut fade = stop.fadeOut();
++        if (!fade.enabled() || fade.plays() <= 0) {
++            if (stop.delay() == 0L) {
++                stopSounds(engine, player, sounds);
++                cleanup.run();
++                return List.of();
++            }
++            List<BukkitTask> tasks = new ArrayList<>(1);
++            tasks.add(plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
++                stopSounds(engine, player, sounds);
++        

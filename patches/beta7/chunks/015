@@ -1,0 +1,21 @@
+oops == null || loops.get(key) != completed) return;
++        loops.remove(key);
++        if (loops.isEmpty()) biomeLoops.remove(playerId);
+     }
+ 
+     private void cancelPendingBiomeStops(Player player, String key) {
+         Map<String, List<BukkitTask>> byBiome = biomeStopTasks.get(player.getUniqueId());
+         if (byBiome == null) return;
+-        List<BukkitTask> tasks = byBiome.remove(key);
+-        if (tasks != null) for (BukkitTask task : tasks) task.cancel();
++        for (String stopKey : new ArrayList<>(byBiome.keySet())) {
++            if (stopKey.equals(key) || stopKey.startsWith(key + "|")) {
++                LoopExitController.cancel(byBiome.remove(stopKey));
++            }
++        }
+         if (byBiome.isEmpty()) biomeStopTasks.remove(player.getUniqueId());
+     }
+ 
+     private void stopConfiguredOnExit(Player player, String biomeKey, ConfigurationSection section) {
+-        ConfigurationSection stop = getSectionIgnoreCase(section, "Stop On Exit");
+-        if (s

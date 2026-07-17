@@ -1,0 +1,86 @@
+(player, sound);
+-            }
++        for (Map<String, RepeatingSoundLoop> playerLoops : loops.values()) {
++            for (RepeatingSoundLoop loop : playerLoops.values()) loop.cancel(true);
+         }
+         loops.clear();
+-        for (Map<String, BukkitTask> map : pendingStops.values()) for (BukkitTask stop : map.values()) stop.cancel();
++        for (Map<String, List<BukkitTask>> map : pendingStops.values()) {
++            for (List<BukkitTask> tasks : map.values()) LoopExitController.cancel(tasks);
++        }
+         pendingStops.clear();
+         active.clear();
+     }
+@@ -147,7 +144,23 @@ final class RegionModule {
+         if (provider == null) provider = "KaltraSounds";
+         String path = provider + "." + region.name() + "." + normalizedPhase;
+         yaml.set(path + ".Enabled", true);
+-        if (normalizedPhase.equals("Loop") && !yaml.contains(path + ".Period")) yaml.set(path + ".Period", 100);
++        if (normalizedPhase.equals("Loop")) {
++            if (!yaml.contains(path + ".Delay")) yaml.set(path + ".Delay", 0);
++            if (!yaml.contains(path + ".Period")) yaml.set(path + ".Period", 100);
++            if (!yaml.contains(path + ".Period Randomness")) yaml.set(path + ".Period Randomness", 0);
++            if (!yaml.contains(path + ".Maximum Plays")) yaml.set(path + ".Maximum Plays", 0);
++            if (!yaml.contains(path + ".Fade In.Enabled")) yaml.set(path + ".Fade In.Enabled", false);
++            if (!yaml.contains(path + ".Fade In.Plays")) yaml.set(path + ".Fade In.Plays", 3);
++            if (!yaml.contains(path + ".Fade In.Start Volume Multiplier")) yaml.set(path + ".Fade In.Start Volume Multiplier", 0.2);
++            if (!yaml.contains(path + ".Fade In.Curve")) yaml.set(path + ".Fade In.Curve", "SMOOTHSTEP");
++            if (!yaml.contains(path + ".Stop On Exit.Enabled")) yaml.set(path + ".Stop On Exit.Enabled", true);
++            if (!yaml.contains(path + ".Stop On Exit.Delay")) yaml.set(path + ".Stop On Exit.Delay", 0);
++            if (!yaml.contains(path + ".Stop On Exit.Fade Out.Enabled")) yaml.set(path + ".Stop On Exit.Fade Out.Enabled", false);
++            if (!yaml.contains(path + ".Stop On Exit.Fade Out.Plays")) yaml.set(path + ".Stop On Exit.Fade Out.Plays", 3);
++            if (!yaml.contains(path + ".Stop On Exit.Fade Out.Period")) yaml.set(path + ".Stop On Exit.Fade Out.Period", 20);
++            if (!yaml.contains(path + ".Stop On Exit.Fade Out.End Volume Multiplier")) yaml.set(path + ".Stop On Exit.Fade Out.End Volume Multiplier", 0.0);
++            if (!yaml.contains(path + ".Stop On Exit.Fade Out.Curve")) yaml.set(path + ".Stop On Exit.Fade Out.Curve", "SMOOTHSTEP");
++        }
+         yaml.set(path + ".Sounds.1.Sound", sound);
+         yaml.set(path + ".Sounds.1.Volume", volume);
+         yaml.set(path + ".Sounds.1.Pitch", pitch);
+@@ -385,87 +398,89 @@ final class RegionModule {
+     }
+ 
+     private void startLoop(Player player, String token, ConfigurationSection loop) {
+-        cancelPendingStops(player.getUniqueId(), token);
+-        cancelLoop(player.getUniqueId(), token, player);
+-        long delay = Math.max(0, loop.getLong("Delay", 0));
+-        long period = Math.max(1, loop.getLong("Period", 100));
+-        List<String> soundKeys = soundsOf(loop);
+-        if (soundKeys.isEmpty()) return;
+-        BukkitTask running = Bukkit.getScheduler().runTaskTimer(plugin, () -> {
+-            Set<String> current = active.get(player.getUniqueId());
+-            if (player.isOnline() && current != null && current.contains(token)) engine.playRule(loop, player, player.getLocation());
+-        }, delay, period);
+-        loops.computeIfAbsent(player.getUniqueId(), ignored -> new HashMap<>()).put(token, new LoopHandle(running, soundKeys));
++        UUID playerId = player.getUniqueId();
++        cancelPendingStops(playerId, token);
++        cancelLoop(playerId, token, player);
++        RepeatingSoundLoop playback = new RepeatingSoundLoop(
++                plugin, engine, player, loop,
++                () -> {
++                    Set<String> current = active.get(playerId);
++                    return current != null && current.contains(token);
++                },
++                finished -> removeCompletedLoop(playerId, token, finished)
++        );
++        if (!playback.valid()) return;
++        loops.computeIfAbsent(playerId, ignored -> new HashMap<>()).put(token, playback);
++        playback.start();
+     }
+ 
+     private void stopLoop(Player player, String token, ConfigurationSection loop, boolean applyStopOnExit) {
+-        LoopHandle handle = removeLoop(player.getUniqueId(), token);
+-        List<String> sounds = handle == null ? soundsOf(loop) : handle.sounds();
++        RepeatingSoundLoop playback = removeLoop(player.getUniqueId(), token);
++        if (playback != null) playback.cancel(false);
++        List<String> sounds = playback == null ? soundsOf(loop) : playback.soundKeys();
+         if (applyStopOnExit) scheduleStopOnExit(player, token + "|loop", loop, sounds);
+     }
+ 
+-    private LoopHandle removeLoop(UUID playerId, String token) {
+-        Map<String, LoopHandle> map = loops.get(playerId);
++    private RepeatingSoundLoop removeLoop(UUID playerId, String token) {
++        Map<String, RepeatingSoundLoop> map = loops.get(playerId);
+         if (map == null) return null;
+-        LoopHandle handle = map.remove(token);
+-        if (handle != null) handle.task().cancel();
++        RepeatingSoundLoop playback = map.remove(toke

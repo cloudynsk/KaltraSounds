@@ -1,0 +1,22 @@
+r().runTaskLater(plugin, () -> {
+-            try {
+-                action.run();
+-            } finally {
+-                Map<String, List<BukkitTask>> byBiome = biomeStopTasks.get(player.getUniqueId());
+-                if (byBiome != null) {
+-                    List<BukkitTask> tasks = byBiome.get(biomeKey);
+-                    if (tasks != null) {
+-                        tasks.remove(reference[0]);
+-                        if (tasks.isEmpty()) byBiome.remove(biomeKey);
+-                    }
+-                    if (byBiome.isEmpty()) biomeStopTasks.remove(player.getUniqueId());
+-                }
+-            }
+-        }, delay);
+-        reference[0] = task;
+-        biomeStopTasks.computeIfAbsent(player.getUniqueId(), ignored -> new HashMap<>())
+-                .computeIfAbsent(biomeKey, ignored -> new ArrayList<>()).add(task);
++    }
++
++    private void removeCompletedBiomeStop(UUID playerId, String key) {
++        Map<String, List<BukkitTask>> byBiome = biomeStopTasks.g

@@ -1,0 +1,20 @@
+)) LoopExitController.cancel(group);
+         lastBiome.remove(id);
+     }
+ 
+@@ -294,70 +296,73 @@ final class SituationalModule {
+         if (leave != null) engine.playRule(leave, player, player.getLocation());
+         ConfigurationSection loop = getSectionIgnoreCase(biomeSection, "Loop");
+         cancelBiomeLoop(player, key);
+-        if (loop != null) stopConfiguredOnExit(player, key, loop);
++        if (loop != null) stopConfiguredOnExit(player, key + "|loop", loop);
+         ConfigurationSection enter = getSectionIgnoreCase(biomeSection, "Enter");
+-        if (enter != null) stopConfiguredOnExit(player, key, enter);
++        if (enter != null) stopConfiguredOnExit(player, key + "|enter", enter);
+     }
+ 
+     private void startBiomeLoop(Player player, String key, ConfigurationSection loop) {
++        UUID playerId = player.getUniqueId();
+         cancelPendingBiomeStops(player, key);
+-        cancelBiomeLoop(player, key);
+-        if (SoundSpec.fromRule(loop).isEmpty()) return;

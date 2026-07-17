@@ -1,0 +1,19 @@
+top == null || !stop.getBoolean("Enabled", false)) return;
+-        long delay = Math.max(0, stop.getLong("Delay", 0));
+-        Runnable action = () -> {
+-            for (SoundSpec spec : SoundSpec.fromRule(section)) engine.stop(player, spec.key());
+-        };
+-        if (delay == 0) {
+-            action.run();
+-            return;
++        List<String> sounds = SoundSpec.fromRule(section).stream().map(SoundSpec::key).toList();
++        if (sounds.isEmpty()) return;
++        UUID playerId = player.getUniqueId();
++        cancelPendingBiomeStops(player, biomeKey);
++        List<BukkitTask> tasks = LoopExitController.schedule(plugin, engine, player, section, sounds,
++                () -> removeCompletedBiomeStop(playerId, biomeKey));
++        if (!tasks.isEmpty()) {
++            biomeStopTasks.computeIfAbsent(playerId, ignored -> new HashMap<>()).put(biomeKey, tasks);
+         }
+-        final BukkitTask[] reference = new BukkitTask[1];
+-        BukkitTask task = Bukkit.getSchedule

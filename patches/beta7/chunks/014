@@ -1,0 +1,21 @@
+te void cancelBiomeLoop(Player player, String key) {
+-        Map<String, BukkitTask> tasks = biomeLoops.get(player.getUniqueId());
+-        if (tasks == null) return;
+-        BukkitTask task = tasks.remove(key);
+-        if (task != null) task.cancel();
+-        if (tasks.isEmpty()) biomeLoops.remove(player.getUniqueId());
++        cancelBiomeLoop(player, key, false);
++    }
++
++    private void cancelBiomeLoop(Player player, String key, boolean stopSounds) {
++        UUID playerId = player.getUniqueId();
++        Map<String, RepeatingSoundLoop> loops = biomeLoops.get(playerId);
++        if (loops == null) return;
++        RepeatingSoundLoop playback = loops.remove(key);
++        if (playback != null) playback.cancel(stopSounds);
++        if (loops.isEmpty()) biomeLoops.remove(playerId);
++    }
++
++    private void removeCompletedBiomeLoop(UUID playerId, String key, RepeatingSoundLoop completed) {
++        Map<String, RepeatingSoundLoop> loops = biomeLoops.get(playerId);
++        if (l

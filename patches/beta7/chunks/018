@@ -1,0 +1,23 @@
+et(playerId);
++        if (byBiome == null) return;
++        byBiome.remove(key);
++        if (byBiome.isEmpty()) biomeStopTasks.remove(playerId);
+     }
+ 
+     private void tickWorldTime() {
+diff --git a/src/main/java/net/kaltra/sounds/SoundEngine.java b/src/main/java/net/kaltra/sounds/SoundEngine.java
+index 41adf36..a6265ca 100644
+--- a/src/main/java/net/kaltra/sounds/SoundEngine.java
++++ b/src/main/java/net/kaltra/sounds/SoundEngine.java
+@@ -43,10 +43,20 @@ final class SoundEngine {
+     }
+ 
+     boolean playRuleTo(ConfigurationSection rule, Player actor, Location origin, Collection<? extends Player> allowedRecipients) {
++        return playRuleScaledTo(rule, actor, origin, allowedRecipients, 1.0f);
++    }
++
++    boolean playRuleScaled(ConfigurationSection rule, Player actor, Location origin, float volumeMultiplier) {
++        return playRuleScaledTo(rule, actor, origin, null, volumeMultiplier);
++    }
++
++    private boolean playRuleScaledTo(ConfigurationSection rule, Player actor, 

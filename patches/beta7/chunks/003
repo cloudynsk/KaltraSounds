@@ -1,0 +1,122 @@
+        cleanup.run();
++            }, stop.delay()));
++            return tasks;
++        }
++
++        List<BukkitTask> tasks = new ArrayList<>(fade.plays() + 1);
++        try {
++            for (int play = 1; play <= fade.plays(); play++) {
++                int currentPlay = play;
++                long offset = saturatedMultiply(fade.period(), play - 1L);
++                long delay = saturatedAdd(stop.delay(), offset);
++                tasks.add(plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
++                    if (!player.isOnline()) return;
++                    float multiplier = settings.fadeOutMultiplier(currentPlay);
++                    if (multiplier > 0.0001f) {
++                        engine.playRuleScaled(loop, player, player.getLocation(), multiplier);
++                    }
++                }, delay));
++            }
++            long latestSoundDelay = SoundSpec.fromRule(loop).stream().mapToLong(SoundSpec::delay).max().orElse(0L);
++            long finalDelay = saturatedAdd(stop.delay(), saturatedMultiply(fade.period(), fade.plays()));
++            finalDelay = saturatedAdd(finalDelay, latestSoundDelay);
++            tasks.add(plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
++                stopSounds(engine, player, sounds);
++                cleanup.run();
++            }, finalDelay));
++            return tasks;
++        } catch (RuntimeException | LinkageError ex) {
++            for (BukkitTask task : tasks) task.cancel();
++            stopSounds(engine, player, sounds);
++            cleanup.run();
++            plugin.getLogger().warning("Could not schedule loop fade-out for " + player.getName() + ": " + ex.getMessage());
++            return List.of();
++        }
++    }
++
++    static void cancel(List<BukkitTask> tasks) {
++        if (tasks == null) return;
++        for (BukkitTask task : tasks) task.cancel();
++    }
++
++    private static void stopSounds(SoundEngine engine, Player player, List<String> sounds) {
++        if (!player.isOnline()) return;
++        for (String sound : sounds) engine.stop(player, sound);
++    }
++
++    private static long saturatedAdd(long left, long right) {
++        if (right > 0L && left > Long.MAX_VALUE - right) return Long.MAX_VALUE;
++        return left + right;
++    }
++
++    private static long saturatedMultiply(long left, long right) {
++        if (left <= 0L || right <= 0L) return 0L;
++        if (left > Long.MAX_VALUE / right) return Long.MAX_VALUE;
++        return left * right;
++    }
++}
+diff --git a/src/main/java/net/kaltra/sounds/LoopSettings.java b/src/main/java/net/kaltra/sounds/LoopSettings.java
+new file mode 100644
+index 0000000..3c41eba
+--- /dev/null
++++ b/src/main/java/net/kaltra/sounds/LoopSettings.java
+@@ -0,0 +1,147 @@
++package net.kaltra.sounds;
++
++import org.bukkit.configuration.ConfigurationSection;
++
++import java.util.Locale;
++import java.util.concurrent.ThreadLocalRandom;
++
++record LoopSettings(
++        long delay,
++        long period,
++        long periodRandomness,
++        int maximumPlays,
++        FadeIn fadeIn,
++        StopOnExit stopOnExit
++) {
++    private static final int MAX_FADE_PLAYS = 1_000;
++
++    static LoopSettings from(ConfigurationSection loop) {
++        long delay = Math.max(0L, longValue(loop, "Delay", 0L));
++        long period = Math.max(1L, longValue(loop, "Period", 100L));
++        long randomness = Math.max(0L, longValue(loop, "Period Randomness", 0L));
++        int maximumPlays = Math.max(0, intValue(loop, "Maximum Plays", 0));
++
++        ConfigurationSection fadeInSection = section(loop, "Fade In");
++        FadeIn fadeIn = new FadeIn(
++                fadeInSection != null && booleanValue(fadeInSection, "Enabled", false),
++                clampFadePlays(intValue(fadeInSection, "Plays", 3)),
++                multiplier(doubleValue(fadeInSection, "Start Volume Multiplier", 0.2)),
++                Curve.parse(stringValue(fadeInSection, "Curve", "SMOOTHSTEP"))
++        );
++
++        ConfigurationSection stopSection = section(loop, "Stop On Exit");
++        ConfigurationSection fadeOutSection = section(stopSection, "Fade Out");
++        FadeOut fadeOut = new FadeOut(
++                fadeOutSection != null && booleanValue(fadeOutSection, "Enabled", false),
++                clampFadePlays(intValue(fadeOutSection, "Plays", 3)),
++                Math.max(1L, longValue(fadeOutSection, "Period", period)),
++                multiplier(doubleValue(fadeOutSection, "End Volume Multiplier", 0.0)),
++                Curve.parse(stringValue(fadeOutSection, "Curve", "SMOOTHSTEP"))
++        );
++        StopOnExit stopOnExit = new StopOnExit(
++                stopSection != null && booleanValue(stopSection, "Enabled", false),
++                Math.max(0L, longValue(stopSection, "Delay", 0L)),
++                fadeOut
++        );
++        return new LoopSettings(delay, period, randomness, maximumPlays, fadeIn, stopOnExit);
++    }
++
++    long nextPeriod() {
++        if (periodRandomness <= 0L) return period;
++        long lower = periodRandomness >= period ? 1L : period - periodRandomness;
++        long upper = period > Long.MAX_VALUE - periodRandomness ? Long.MAX_VALUE : period + periodRandomness;
++        if (upper <= lower) return lower;
++        if (upper == Long.MAX_VALUE) return ThreadLocalRandom.current().nextLong(lower, upper);
++        return ThreadLocalRandom.current().nextLong(lower, upper + 1L);
++    }
++
++    float fadeInMultiplier(int playNumber) {
++        if (!fadeIn.enabl

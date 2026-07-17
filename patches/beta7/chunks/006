@@ -1,0 +1,41 @@
+n);
++        if (map.isEmpty()) loops.remove(playerId);
++        return playback;
++    }
++
++    private void removeCompletedLoop(UUID playerId, String token, RepeatingSoundLoop completed) {
++        Map<String, RepeatingSoundLoop> map = loops.get(playerId);
++        if (map == null || map.get(token) != completed) return;
++        map.remove(token);
+         if (map.isEmpty()) loops.remove(playerId);
+-        return handle;
+     }
+ 
+     private void cancelLoop(UUID playerId, String token, Player player) {
+-        LoopHandle handle = removeLoop(playerId, token);
+-        if (handle != null && player != null) for (String sound : handle.sounds()) engine.stop(player, sound);
++        RepeatingSoundLoop playback = removeLoop(playerId, token);
++        if (playback != null) playback.cancel(player != null);
+     }
+ 
+     private void scheduleStopOnExit(Player player, String stopKey, ConfigurationSection source, List<String> sounds) {
+         if (source == null || sounds.isEmpty()) return;
+-        ConfigurationSection stop = sectionIgnoreCase(source, "Stop On Exit");
+-        if (stop == null || !stop.getBoolean("Enabled", false)) return;
+-        long delay = Math.max(0, stop.getLong("Delay", 0));
+-        cancelPendingStop(player.getUniqueId(), stopKey);
+-        Runnable action = () -> {
+-            for (String sound : sounds) engine.stop(player, sound);
+-            Map<String, BukkitTask> map = pendingStops.get(player.getUniqueId());
+-            if (map != null) {
+-                map.remove(stopKey);
+-                if (map.isEmpty()) pendingStops.remove(player.getUniqueId());
+-            }
+-        };
+-        if (delay == 0) action.run();
+-        else {
+-            BukkitTask task = Bukkit.getScheduler().runTaskLater(plugin, action, delay);
+-            pendingStops.computeIfAbsent(player.getUniqueId(), ignored -> new HashMap<>()).put(stopKey, task);
++        UUID playerId = player.getUniqueId();
++        cancelPendingStop(playerId, stopKey);
++        List<

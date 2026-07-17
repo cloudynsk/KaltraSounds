@@ -1,0 +1,45 @@
+BukkitTask> tasks = LoopExitController.schedule(plugin, engine, player, source, sounds,
++                () -> removeCompletedStop(playerId, stopKey));
++        if (!tasks.isEmpty()) {
++            pendingStops.computeIfAbsent(playerId, ignored -> new HashMap<>()).put(stopKey, tasks);
+         }
+     }
+ 
++    private void removeCompletedStop(UUID playerId, String key) {
++        Map<String, List<BukkitTask>> map = pendingStops.get(playerId);
++        if (map == null) return;
++        map.remove(key);
++        if (map.isEmpty()) pendingStops.remove(playerId);
++    }
++
+     private void cancelPendingStop(UUID playerId, String key) {
+-        Map<String, BukkitTask> map = pendingStops.get(playerId);
++        Map<String, List<BukkitTask>> map = pendingStops.get(playerId);
+         if (map == null) return;
+-        BukkitTask task = map.remove(key);
+-        if (task != null) task.cancel();
++        LoopExitController.cancel(map.remove(key));
+         if (map.isEmpty()) pendingStops.remove(playerId);
+     }
+ 
+     private void cancelPendingStops(UUID playerId, String tokenPrefix) {
+-        Map<String, BukkitTask> map = pendingStops.get(playerId);
++        Map<String, List<BukkitTask>> map = pendingStops.get(playerId);
+         if (map == null) return;
+         for (String key : new ArrayList<>(map.keySet())) {
+             if (tokenPrefix == null || key.startsWith(tokenPrefix + "|")) {
+-                BukkitTask task = map.remove(key);
+-                if (task != null) task.cancel();
++                LoopExitController.cancel(map.remove(key));
+             }
+         }
+         if (map.isEmpty()) pendingStops.remove(playerId);
+     }
+ 
+     private void cancelPlayerLoops(UUID playerId, Player player) {
+-        Map<String, LoopHandle> map = loops.remove(playerId);
++        Map<String, RepeatingSoundLoop> map = loops.remove(playerId);
+         if (map == null) return;
+-        for (LoopHandle handle : map.values()) {
+-            handle.task().cancel();
+-            if

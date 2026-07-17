@@ -1,0 +1,102 @@
+: 3
++      Period: 20
++      End Volume Multiplier: 0.0
++      Curve: SMOOTHSTEP
++
++  Sounds:
++    1:
++      Sound: ambient.cave
++      Volume: 1.0
++      Pitch: 1.0
++      Options:
++        Radius: 0
++```
++
++## Settings
++
++- `Delay`: ticks before the first play.
++- `Period`: base ticks between plays.
++- `Period Randomness`: random plus/minus variation applied to each period. The effective period never drops below one tick.
++- `Maximum Plays`: total loop plays before stopping automatically. `0` means unlimited.
++- `Fade In.Plays`: number of loop replays used to reach full configured volume.
++- `Fade In.Start Volume Multiplier`: starting fraction of each sound's configured volume, from `0.0` to `1.0`.
++- `Stop On Exit.Delay`: delay before the fade-out or immediate stop begins.
++- `Fade Out.Plays`: number of decreasing-volume tail replays after exit.
++- `Fade Out.Period`: ticks between tail replays.
++- `Fade Out.End Volume Multiplier`: final replay volume fraction, from `0.0` to `1.0`.
++- `Curve`: `LINEAR`, `SMOOTHSTEP`, or `EXPONENTIAL`.
++
++## Important audio limitation
++
++Minecraft's server sound packet cannot continuously change the volume of a sound instance that is already playing. KaltraSounds therefore fades the volume **between repeated plays**. This works best with short ambient clips whose duration is at or below `Period`.
++
++For one long music or ambience file, a fade-out replay would restart or overlap the clip. Keep `Fade Out.Enabled: false` for long files and use `Stop On Exit` for an immediate stop, or split the resource-pack audio into short seamless segments designed for replay fading.
+diff --git a/README.md b/README.md
+index 7a8120b..081dcb8 100644
+--- a/README.md
++++ b/README.md
+@@ -7,7 +7,7 @@ KaltraSounds is an all-in-one Paper sound platform intended to replace PlayMoreS
+ - Paper 26.1.1
+ - Paper API `26.1.1.build.29-alpha`
+ - Java 25
+-- Plugin version `1.0.0-beta.6`
++- Plugin version `1.0.0-beta.7`
+ 
+ ## Included
+ 
+@@ -24,10 +24,15 @@ KaltraSounds is an all-in-one Paper sound platform intended to replace PlayMoreS
+ 
+ Resource-pack requesting, forcing, kicking and confirmation logic are intentionally absent. Custom namespaced sounds remain supported.
+ 
+-## beta.6 status
++## beta.7 status
+ 
+-This archive is an audited **source release candidate**, not a runtime-certified jar. The source passes the included static, YAML, permission, parser and structural compile checks. A final Java 25 compile against the real Paper API and a clean-server runtime pass are still required before deployment. See `AUDIT-beta.6.md` and `TESTING-beta.6.md`.
++This archive is an audited **source release candidate**, not a runtime-certified jar. The source passes the included static, YAML, permission, parser and structural compile checks. A final Java 25 compile against the real Paper API and a clean-server runtime pass are still required before deployment. See `AUDIT-beta.6.md`, `CHANGES-beta.7.md`, `LOOPING.md`, and `TESTING-beta.7.md`.
+ 
+ ## License
+ 
+ GPL-3.0-or-later. This replacement was designed around the public configuration and behavior of the GPL-licensed PlayMoreSounds project.
++
++
++## Loop controls
++
++Region and biome loop rules support initial delay, fixed or randomized periods, maximum play counts, replay-volume fade-in, and optional replay-volume fade-out on exit. See `LOOPING.md` for the schema and the client-audio limitation: Minecraft cannot change the volume of a sound instance that is already playing, so fades are applied across loop replays rather than continuously modifying one active clip.
+diff --git a/TESTING-beta.7.md b/TESTING-beta.7.md
+new file mode 100644
+index 0000000..643f565
+--- /dev/null
++++ b/TESTING-beta.7.md
+@@ -0,0 +1,12 @@
++# KaltraSounds beta.7 loop test checklist
++
++1. Configure a short region loop with `Period: 20`, fade-in enabled for four plays, and `Start Volume Multiplier: 0.1`.
++2. Enter the region and confirm four successive plays rise toward the configured volume.
++3. Set `Period Randomness: 10` and confirm plays vary without scheduling below one tick.
++4. Set `Maximum Plays: 3` and confirm no fourth play occurs and loop state does not restart until re-entry or reload.
++5. Enable `Stop On Exit` and fade-out for three plays. Leave and confirm decreasing-volume tail replays followed by a named-sound stop.
++6. Leave and immediately re-enter. Confirm the old fade-out is cancelled and does not stop the new loop.
++7. Reload all/sounds/regions while inside. Confirm one loop remains and no stale fade tasks fire.
++8. Disconnect inside a loop and inspect the console for scheduler or collection exceptions.
++9. Run `/pms validate` with invalid periods, multipliers and curves and confirm each is reported.
++10. Repeat with a long custom clip and confirm the documented replay limitation is understood before production use.
+diff --git a/build.gradle.kts b/build.gradle.kts
+index f9b6121..fa897b2 100644
+--- a/build.gradle.kts
++++ b/build.gradle.kts
+@@ -3,7 +3,7 @@ plugins {
+ }
+ 
+ group = "net.kaltra"
+-version = "1.0.0-beta.6"
++version = "1.0.0-beta.7"
+ 
+ repositories {
+     maven {
+diff --git a/src/main/java/net/kaltra/sounds/ConfigHub.java b/src/main/java/net/kaltra/sounds/ConfigHub.java
+index efea862..ca50013 100644
+--- a/src/main/java/net/kaltra/sounds/ConfigHub.java
++++ b/src/main/java/net/kaltra/sounds/ConfigHub.java
+@@ -246,6 +246,7 @@ final class ConfigHub {
+             String next = path.isEmpty() ? key : path + "." + key;
+             ConfigurationSection child = sec

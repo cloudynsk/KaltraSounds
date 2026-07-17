@@ -1,0 +1,20 @@
+
+-        long delay = Math.max(0, loop.getLong("Delay", 0));
+-        long period = Math.max(1, loop.getLong("Period", 100));
+-        BukkitTask task = Bukkit.getScheduler().runTaskTimer(plugin, () -> {
+-            String current = lastBiome.get(player.getUniqueId());
+-            if (player.isOnline() && key.equals(current)) engine.playRule(loop, player, player.getLocation());
+-        }, delay, period);
+-        biomeLoops.computeIfAbsent(player.getUniqueId(), ignored -> new HashMap<>()).put(key, task);
++        cancelBiomeLoop(player, key, true);
++        RepeatingSoundLoop playback = new RepeatingSoundLoop(
++                plugin, engine, player, loop,
++                () -> key.equals(lastBiome.get(playerId)),
++                finished -> removeCompletedBiomeLoop(playerId, key, finished)
++        );
++        if (!playback.valid()) return;
++        biomeLoops.computeIfAbsent(playerId, ignored -> new HashMap<>()).put(key, playback);
++        playback.start();
+     }
+ 
+     priva

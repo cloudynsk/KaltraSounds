@@ -1,0 +1,55 @@
+ (player != null) for (String sound : handle.sounds()) engine.stop(player, sound);
+-        }
++        for (RepeatingSoundLoop playback : map.values()) playback.cancel(player != null);
+     }
+ 
+     private List<String> soundsOf(ConfigurationSection source) {
+diff --git a/src/main/java/net/kaltra/sounds/RepeatingSoundLoop.java b/src/main/java/net/kaltra/sounds/RepeatingSoundLoop.java
+new file mode 100644
+index 0000000..1bb056e
+--- /dev/null
++++ b/src/main/java/net/kaltra/sounds/RepeatingSoundLoop.java
+@@ -0,0 +1,100 @@
++package net.kaltra.sounds;
++
++import org.bukkit.Location;
++import org.bukkit.configuration.ConfigurationSection;
++import org.bukkit.entity.Player;
++import org.bukkit.plugin.java.JavaPlugin;
++import org.bukkit.scheduler.BukkitTask;
++
++import java.util.List;
++import java.util.function.BooleanSupplier;
++import java.util.function.Consumer;
++
++final class RepeatingSoundLoop {
++    private final JavaPlugin plugin;
++    private final SoundEngine engine;
++    private final Player player;
++    private final ConfigurationSection rule;
++    private final LoopSettings settings;
++    private final BooleanSupplier activeCheck;
++    private final Consumer<RepeatingSoundLoop> onFinished;
++    private final List<String> soundKeys;
++    private BukkitTask task;
++    private int plays;
++    private boolean cancelled;
++
++    RepeatingSoundLoop(JavaPlugin plugin, SoundEngine engine, Player player, ConfigurationSection rule,
++                       BooleanSupplier activeCheck, Consumer<RepeatingSoundLoop> onFinished) {
++        this.plugin = plugin;
++        this.engine = engine;
++        this.player = player;
++        this.rule = rule;
++        this.settings = LoopSettings.from(rule);
++        this.activeCheck = activeCheck;
++        this.onFinished = onFinished;
++        this.soundKeys = SoundSpec.fromRule(rule).stream().map(SoundSpec::key).toList();
++    }
++
++    boolean valid() {
++        return !soundKeys.isEmpty();
++    }
++
++    List<String> soundKeys() {
++        r
