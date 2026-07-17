@@ -133,6 +133,19 @@ jobs:
           printf 'plugins\n' >&3
           printf 'pms info\n' >&3
           printf 'pms validate\n' >&3
+          printf 'pms reload all\n' >&3
+          sleep 1
+          printf 'pms reload sounds\n' >&3
+          sleep 1
+          printf 'pms reload regions\n' >&3
+          sleep 1
+          printf 'pms reload integrations\n' >&3
+          sleep 1
+          printf 'pms reload messages\n' >&3
+          sleep 1
+          printf 'pms reload all\n' >&3
+          sleep 1
+          printf 'pms validate\n' >&3
           sleep 5
           printf 'stop\n' >&3
           wait "$SERVER_PID"
@@ -140,11 +153,12 @@ jobs:
 
           cat server.log
           grep -F 'KaltraSounds enabled:' server.log
-          grep -F 'Configuration validation passed.' server.log
+          test "$(grep -Fc 'Configuration validation passed.' server.log)" -ge 2
+          test "$(grep -Fc 'Reload complete in' server.log)" -ge 6
           grep -F 'KaltraSounds disabled; scheduled sounds, region loops and integrations were stopped.' server.log
 
-          if grep -E 'KaltraSounds failed to enable|Could not load.*KaltraSounds|NoClassDefFoundError|NoSuchMethodError|UnsupportedClassVersionError' server.log; then
-            echo 'A release-blocking startup error was found.' >&2
+          if grep -E 'KaltraSounds failed to enable|Could not load.*KaltraSounds|NoClassDefFoundError|NoSuchMethodError|UnsupportedClassVersionError|Reload failed' server.log; then
+            echo 'A release-blocking startup or reload error was found.' >&2
             exit 1
           fi
 
