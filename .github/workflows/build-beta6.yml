@@ -1,4 +1,4 @@
-name: Build KaltraSounds beta.6
+name: Build KaltraSounds beta.7
 
 on:
   pull_request:
@@ -18,19 +18,34 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v4
 
-      - name: Verify fixed source archive
+      - name: Verify beta.6 source and beta.7 patch
         shell: bash
         run: |
+          set -euo pipefail
           echo "f7e287d20906dfaf5daab5a2d25df99c811dfedf5a0e44ed2ef95c36aba51949  KaltraSounds-1.0.0-beta.6-fixed-source.zip" | sha256sum --check --strict
+          cat patches/beta7/chunks/* > "$RUNNER_TEMP/KaltraSounds-beta.7-loop-controls.patch"
+          echo "33c6811382f72dd2f72dd03957a4c1e0ece94cb4f517e59adda72ea933151f01  $RUNNER_TEMP/KaltraSounds-beta.7-loop-controls.patch" | sha256sum --check --strict
 
-      - name: Extract source
+      - name: Extract and patch source
         shell: bash
         run: |
+          set -euo pipefail
           rm -rf extracted
           mkdir extracted
           unzip -q KaltraSounds-1.0.0-beta.6-fixed-source.zip -d extracted
           SOURCE_DIR="$(find extracted -name build.gradle.kts -type f -printf '%h\n' | head -n 1)"
           test -n "$SOURCE_DIR"
+          (
+            cd "$SOURCE_DIR"
+            git apply --check "$RUNNER_TEMP/KaltraSounds-beta.7-loop-controls.patch"
+            git apply "$RUNNER_TEMP/KaltraSounds-beta.7-loop-controls.patch"
+            grep -F 'version = "1.0.0-beta.7"' build.gradle.kts
+            grep -F 'version: 1.0.0-beta.7' src/main/resources/plugin.yml
+            test -f LOOPING.md
+            test -f src/main/java/net/kaltra/sounds/LoopSettings.java
+            test -f src/main/java/net/kaltra/sounds/RepeatingSoundLoop.java
+            test -f src/main/java/net/kaltra/sounds/LoopExitController.java
+          )
           echo "SOURCE_DIR=$SOURCE_DIR" >> "$GITHUB_ENV"
           echo "Source directory: $SOURCE_DIR"
 
@@ -52,11 +67,12 @@ jobs:
       - name: Inspect compiled plugin
         shell: bash
         run: |
+          set -euo pipefail
           JAR="$(find "$SOURCE_DIR/build/libs" -maxdepth 1 -type f -name 'KaltraSounds-*.jar' | head -n 1)"
           test -f "$JAR"
 
           unzip -p "$JAR" plugin.yml | tee plugin.yml.built
-          grep -F "version: 1.0.0-beta.6" plugin.yml.built
+          grep -F "version: 1.0.0-beta.7" plugin.yml.built
           grep -F "api-version: '26.1'" plugin.yml.built
 
           if unzip -Z1 "$JAR" | grep -Eq '^(org/bukkit|io/papermc)/'; then
@@ -65,11 +81,18 @@ jobs:
           fi
 
           mkdir -p dist
-          cp "$JAR" dist/KaltraSounds-1.0.0-beta.6.jar
-          sha256sum dist/KaltraSounds-1.0.0-beta.6.jar | tee dist/KaltraSounds-1.0.0-beta.6.jar.sha256
-          unzip -t dist/KaltraSounds-1.0.0-beta.6.jar
+          cp "$JAR" dist/KaltraSounds-1.0.0-beta.7.jar
+          sha256sum dist/KaltraSounds-1.0.0-beta.7.jar | tee dist/KaltraSounds-1.0.0-beta.7.jar.sha256
+          unzip -t dist/KaltraSounds-1.0.0-beta.7.jar
+          cp "$SOURCE_DIR/LOOPING.md" dist/LOOPING-beta.7.md
+          cp "$SOURCE_DIR/CHANGES-beta.7.md" dist/
+          (
+            cd "$SOURCE_DIR"
+            zip -qr "$GITHUB_WORKSPACE/dist/KaltraSounds-1.0.0-beta.7-source.zip" . \
+              -x 'build/*' '.gradle/*' '*.class' '*.jar'
+          )
 
-      - name: Boot Paper and validate plugin
+      - name: Boot Paper and validate loop configuration
         shell: bash
         run: |
           set -euo pipefail
@@ -80,9 +103,9 @@ jobs:
             'first(.[] | select(.channel == "STABLE") | .downloads["server:default"].url) // .[0].downloads["server:default"].url // empty')"
           test -n "$PAPER_URL"
 
-          mkdir -p smoke/plugins
+          mkdir -p smoke/plugins/KaltraSounds/Sounds
           curl --fail --location --show-error -H "User-Agent: $USER_AGENT" -o smoke/paper.jar "$PAPER_URL"
-          cp dist/KaltraSounds-1.0.0-beta.6.jar smoke/plugins/
+          cp dist/KaltraSounds-1.0.0-beta.7.jar smoke/plugins/
           printf 'eula=true\n' > smoke/eula.txt
           cat > smoke/server.properties <<'PROPERTIES'
           online-mode=false
@@ -94,6 +117,38 @@ jobs:
           enable-query=false
           enable-rcon=false
           PROPERTIES
+          cat > smoke/plugins/KaltraSounds/Sounds/regions.yml <<'REGIONS'
+          Version: 'KaltraSounds-1'
+          KaltraSounds:
+            ci_loop:
+              Loop:
+                Enabled: true
+                Delay: 0
+                Period: 20
+                Period Randomness: 5
+                Maximum Plays: 3
+                Fade In:
+                  Enabled: true
+                  Plays: 3
+                  Start Volume Multiplier: 0.2
+                  Curve: SMOOTHSTEP
+                Stop On Exit:
+                  Enabled: true
+                  Delay: 0
+                  Fade Out:
+                    Enabled: true
+                    Plays: 3
+                    Period: 20
+                    End Volume Multiplier: 0.0
+                    Curve: LINEAR
+                Sounds:
+                  1:
+                    Sound: ambient.cave
+                    Volume: 1.0
+                    Pitch: 1.0
+                    Options:
+                      Radius: 0
+          REGIONS
 
           cd smoke
           mkfifo console
@@ -153,21 +208,22 @@ jobs:
 
           cat server.log
           grep -F 'KaltraSounds enabled:' server.log
+          grep -F 'KaltraSounds 1.0.0-beta.7' server.log
           test "$(grep -Fc 'Configuration validation passed.' server.log)" -ge 2
           test "$(grep -Fc 'Reload complete in' server.log)" -ge 6
           grep -F 'KaltraSounds disabled; scheduled sounds, region loops and integrations were stopped.' server.log
 
-          if grep -E 'KaltraSounds failed to enable|Could not load.*KaltraSounds|NoClassDefFoundError|NoSuchMethodError|UnsupportedClassVersionError|Reload failed' server.log; then
-            echo 'A release-blocking startup or reload error was found.' >&2
+          if grep -E 'KaltraSounds failed to enable|Could not load.*KaltraSounds|NoClassDefFoundError|NoSuchMethodError|UnsupportedClassVersionError|Reload failed|Configuration problem' server.log; then
+            echo 'A release-blocking startup, loop-validation, or reload error was found.' >&2
             exit 1
           fi
 
-          cp server.log ../dist/Paper-26.1.1-smoke.log
+          cp server.log ../dist/Paper-26.1.1-beta.7-smoke.log
 
-      - name: Upload compiled JAR
+      - name: Upload compiled beta.7
         uses: actions/upload-artifact@v4
         with:
-          name: KaltraSounds-1.0.0-beta.6
+          name: KaltraSounds-1.0.0-beta.7
           path: dist/*
           if-no-files-found: error
           retention-days: 30
