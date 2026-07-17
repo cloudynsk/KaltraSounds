@@ -3,8 +3,7 @@ name: Build KaltraSounds beta.7
 on:
   pull_request:
   push:
-    branches:
-      - agent/build-beta6-java25
+    branches: [agent/build-beta6-java25]
   workflow_dispatch:
 
 permissions:
@@ -13,32 +12,26 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Verify beta.6 source and beta.7 patch
+      - name: Verify and apply beta.7 patch
         shell: bash
         run: |
           set -euo pipefail
-          echo "f7e287d20906dfaf5daab5a2d25df99c811dfedf5a0e44ed2ef95c36aba51949  KaltraSounds-1.0.0-beta.6-fixed-source.zip" | sha256sum --check --strict
-          cat patches/beta7/chunks/* > "$RUNNER_TEMP/KaltraSounds-beta.7-loop-controls.patch"
-          echo "33c6811382f72dd2f72dd03957a4c1e0ece94cb4f517e59adda72ea933151f01  $RUNNER_TEMP/KaltraSounds-beta.7-loop-controls.patch" | sha256sum --check --strict
-
-      - name: Extract and patch source
-        shell: bash
-        run: |
-          set -euo pipefail
-          rm -rf extracted
-          mkdir extracted
+          echo "f7e287d20906dfaf5daab5a2d25df99c811dfedf5a0e44ed2ef95c36aba51949  KaltraSounds-1.0.0-beta.6-fixed-source.zip" | sha256sum -c --strict
+          cat patches/beta7/chunks/* > "$RUNNER_TEMP/beta7.patch"
+          echo "33c6811382f72dd2f72dd03957a4c1e0ece94cb4f517e59adda72ea933151f01  $RUNNER_TEMP/beta7.patch" | sha256sum -c --strict
+          rm -rf extracted && mkdir extracted
           unzip -q KaltraSounds-1.0.0-beta.6-fixed-source.zip -d extracted
-          SOURCE_DIR="$(find extracted -name build.gradle.kts -type f -printf '%h\n' | head -n 1)"
+          SOURCE_DIR="$(find extracted -name build.gradle.kts -type f -printf '%h\n' | head -n1)"
           test -n "$SOURCE_DIR"
           (
             cd "$SOURCE_DIR"
-            git apply --check "$RUNNER_TEMP/KaltraSounds-beta.7-loop-controls.patch"
-            git apply "$RUNNER_TEMP/KaltraSounds-beta.7-loop-controls.patch"
+            git init -q
+            git apply --check --verbose "$RUNNER_TEMP/beta7.patch"
+            git apply "$RUNNER_TEMP/beta7.patch"
+            rm -rf .git
             grep -F 'version = "1.0.0-beta.7"' build.gradle.kts
             grep -F 'version: 1.0.0-beta.7' src/main/resources/plugin.yml
             test -f LOOPING.md
@@ -47,77 +40,48 @@ jobs:
             test -f src/main/java/net/kaltra/sounds/LoopExitController.java
           )
           echo "SOURCE_DIR=$SOURCE_DIR" >> "$GITHUB_ENV"
-          echo "Source directory: $SOURCE_DIR"
 
-      - name: Set up Java 25
-        uses: actions/setup-java@v4
+      - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '25'
 
-      - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '9.1.0'
 
-      - name: Build against Paper API
-        shell: bash
-        run: gradle -p "$SOURCE_DIR" clean build --stacktrace
-
-      - name: Inspect compiled plugin
+      - name: Compile and inspect
         shell: bash
         run: |
           set -euo pipefail
-          JAR="$(find "$SOURCE_DIR/build/libs" -maxdepth 1 -type f -name 'KaltraSounds-*.jar' | head -n 1)"
+          gradle -p "$SOURCE_DIR" clean build --stacktrace
+          JAR="$(find "$SOURCE_DIR/build/libs" -maxdepth 1 -type f -name 'KaltraSounds-*.jar' | head -n1)"
           test -f "$JAR"
-
           unzip -p "$JAR" plugin.yml | tee plugin.yml.built
-          grep -F "version: 1.0.0-beta.7" plugin.yml.built
+          grep -F 'version: 1.0.0-beta.7' plugin.yml.built
           grep -F "api-version: '26.1'" plugin.yml.built
-
-          if unzip -Z1 "$JAR" | grep -Eq '^(org/bukkit|io/papermc)/'; then
-            echo "The plugin JAR illegally bundles Bukkit or Paper classes." >&2
-            exit 1
-          fi
-
+          ! unzip -Z1 "$JAR" | grep -Eq '^(org/bukkit|io/papermc)/'
           mkdir -p dist
           cp "$JAR" dist/KaltraSounds-1.0.0-beta.7.jar
           sha256sum dist/KaltraSounds-1.0.0-beta.7.jar | tee dist/KaltraSounds-1.0.0-beta.7.jar.sha256
           unzip -t dist/KaltraSounds-1.0.0-beta.7.jar
-          cp "$SOURCE_DIR/LOOPING.md" dist/LOOPING-beta.7.md
-          cp "$SOURCE_DIR/CHANGES-beta.7.md" dist/
-          (
-            cd "$SOURCE_DIR"
-            zip -qr "$GITHUB_WORKSPACE/dist/KaltraSounds-1.0.0-beta.7-source.zip" . \
-              -x 'build/*' '.gradle/*' '*.class' '*.jar'
-          )
+          cp "$SOURCE_DIR/LOOPING.md" "$SOURCE_DIR/CHANGES-beta.7.md" dist/
+          (cd "$SOURCE_DIR" && zip -qr "$GITHUB_WORKSPACE/dist/KaltraSounds-1.0.0-beta.7-source.zip" . -x 'build/*' '.gradle/*' '*.class' '*.jar')
 
-      - name: Boot Paper and validate loop configuration
+      - name: Boot Paper and validate loops
         shell: bash
         run: |
           set -euo pipefail
-          USER_AGENT="KaltraSounds-CI/1.0 (https://github.com/cloudynsk/KaltraSounds)"
-          BUILDS_JSON="$(curl --fail --silent --show-error -H "User-Agent: $USER_AGENT" \
-            https://fill.papermc.io/v3/projects/paper/versions/26.1.1/builds)"
-          PAPER_URL="$(printf '%s' "$BUILDS_JSON" | jq -r \
-            'first(.[] | select(.channel == "STABLE") | .downloads["server:default"].url) // .[0].downloads["server:default"].url // empty')"
-          test -n "$PAPER_URL"
-
+          UA='KaltraSounds-CI/1.0 (https://github.com/cloudynsk/KaltraSounds)'
+          JSON="$(curl -fsS -H "User-Agent: $UA" https://fill.papermc.io/v3/projects/paper/versions/26.1.1/builds)"
+          URL="$(printf '%s' "$JSON" | jq -r 'first(.[] | select(.channel == "STABLE") | .downloads["server:default"].url) // .[0].downloads["server:default"].url // empty')"
+          test -n "$URL"
           mkdir -p smoke/plugins/KaltraSounds/Sounds
-          curl --fail --location --show-error -H "User-Agent: $USER_AGENT" -o smoke/paper.jar "$PAPER_URL"
+          curl -fL -H "User-Agent: $UA" -o smoke/paper.jar "$URL"
           cp dist/KaltraSounds-1.0.0-beta.7.jar smoke/plugins/
           printf 'eula=true\n' > smoke/eula.txt
-          cat > smoke/server.properties <<'PROPERTIES'
-          online-mode=false
-          server-port=25565
-          max-players=1
-          view-distance=2
-          simulation-distance=2
-          spawn-protection=0
-          enable-query=false
-          enable-rcon=false
-          PROPERTIES
-          cat > smoke/plugins/KaltraSounds/Sounds/regions.yml <<'REGIONS'
+          printf 'online-mode=false\nserver-port=25565\nmax-players=1\nview-distance=2\nsimulation-distance=2\n' > smoke/server.properties
+          cat > smoke/plugins/KaltraSounds/Sounds/regions.yml <<'YAML'
           Version: 'KaltraSounds-1'
           KaltraSounds:
             ci_loop:
@@ -148,80 +112,34 @@ jobs:
                     Pitch: 1.0
                     Options:
                       Radius: 0
-          REGIONS
-
+          YAML
           cd smoke
           mkfifo console
           exec 3<>console
           java -Xms1G -Xmx2G -jar paper.jar --nogui <console >server.log 2>&1 &
-          SERVER_PID=$!
-
-          cleanup() {
-            if kill -0 "$SERVER_PID" 2>/dev/null; then
-              printf 'stop\n' >&3 || true
-              sleep 5
-              kill "$SERVER_PID" 2>/dev/null || true
-            fi
-          }
-          trap cleanup EXIT
-
-          READY=false
+          PID=$!
+          trap 'printf "stop\n" >&3 2>/dev/null || true; sleep 3; kill $PID 2>/dev/null || true' EXIT
           for _ in $(seq 1 300); do
-            if grep -q 'Done (' server.log; then
-              READY=true
-              break
-            fi
-            if ! kill -0 "$SERVER_PID" 2>/dev/null; then
-              cat server.log
-              echo 'Paper exited before startup completed.' >&2
-              exit 1
-            fi
+            grep -q 'Done (' server.log && break
+            kill -0 "$PID" 2>/dev/null || { cat server.log; exit 1; }
             sleep 1
           done
-
-          if [ "$READY" != true ]; then
-            cat server.log
-            echo 'Paper did not become ready within 300 seconds.' >&2
-            exit 1
-          fi
-
-          printf 'plugins\n' >&3
-          printf 'pms info\n' >&3
-          printf 'pms validate\n' >&3
-          printf 'pms reload all\n' >&3
-          sleep 1
-          printf 'pms reload sounds\n' >&3
-          sleep 1
-          printf 'pms reload regions\n' >&3
-          sleep 1
-          printf 'pms reload integrations\n' >&3
-          sleep 1
-          printf 'pms reload messages\n' >&3
-          sleep 1
-          printf 'pms reload all\n' >&3
-          sleep 1
-          printf 'pms validate\n' >&3
-          sleep 5
+          grep -q 'Done (' server.log
+          printf 'pms info\npms validate\npms reload all\npms reload sounds\npms reload regions\npms reload integrations\npms reload messages\npms reload all\npms validate\n' >&3
+          sleep 6
           printf 'stop\n' >&3
-          wait "$SERVER_PID"
+          wait "$PID"
           trap - EXIT
-
           cat server.log
           grep -F 'KaltraSounds enabled:' server.log
           grep -F 'KaltraSounds 1.0.0-beta.7' server.log
           test "$(grep -Fc 'Configuration validation passed.' server.log)" -ge 2
           test "$(grep -Fc 'Reload complete in' server.log)" -ge 6
           grep -F 'KaltraSounds disabled; scheduled sounds, region loops and integrations were stopped.' server.log
-
-          if grep -E 'KaltraSounds failed to enable|Could not load.*KaltraSounds|NoClassDefFoundError|NoSuchMethodError|UnsupportedClassVersionError|Reload failed|Configuration problem' server.log; then
-            echo 'A release-blocking startup, loop-validation, or reload error was found.' >&2
-            exit 1
-          fi
-
+          ! grep -E 'KaltraSounds failed to enable|Could not load.*KaltraSounds|NoClassDefFoundError|NoSuchMethodError|UnsupportedClassVersionError|Reload failed|Configuration problem' server.log
           cp server.log ../dist/Paper-26.1.1-beta.7-smoke.log
 
-      - name: Upload compiled beta.7
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
           name: KaltraSounds-1.0.0-beta.7
           path: dist/*
