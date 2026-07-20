@@ -17,15 +17,6 @@ final class DurationTicks {
             value = value.substring(0, value.length() - 4).trim();
         } else if (value.endsWith("t")) {
             value = value.substring(0, value.length() - 1).trim();
-        } else if (value.endsWith("seconds")) {
-            multiplier = 20L;
-            value = value.substring(0, value.length() - 7).trim();
-        } else if (value.endsWith("second")) {
-            multiplier = 20L;
-            value = value.substring(0, value.length() - 6).trim();
-        } else if (value.endsWith("s")) {
-            multiplier = 20L;
-            value = value.substring(0, value.length() - 1).trim();
         } else if (value.endsWith("minutes")) {
             multiplier = 1_200L;
             value = value.substring(0, value.length() - 7).trim();
@@ -34,6 +25,15 @@ final class DurationTicks {
             value = value.substring(0, value.length() - 6).trim();
         } else if (value.endsWith("m")) {
             multiplier = 1_200L;
+            value = value.substring(0, value.length() - 1).trim();
+        } else if (value.endsWith("seconds")) {
+            multiplier = 20L;
+            value = value.substring(0, value.length() - 7).trim();
+        } else if (value.endsWith("second")) {
+            multiplier = 20L;
+            value = value.substring(0, value.length() - 6).trim();
+        } else if (value.endsWith("s")) {
+            multiplier = 20L;
             value = value.substring(0, value.length() - 1).trim();
         }
 
