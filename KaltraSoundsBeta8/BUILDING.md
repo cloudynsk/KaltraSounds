@@ -17,7 +17,7 @@ gradle clean build
 The plugin jar will be created under:
 
 ```text
-build/libs/KaltraSounds-1.0.0-beta.8.jar
+build/libs/KaltraSounds-1.0.0-beta.9.jar
 ```
 
 Paper is a `compileOnly` dependency and is not bundled into the plugin jar.

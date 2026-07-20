@@ -21,7 +21,9 @@ See nbs/README.txt for examples and limitations.
 
 LOOPS
 -----
-Period: Base ticks between loop replays.
+Period: Base ticks between loop replays. Keep it at least as long as the audio file.
+Native region command: /pms region sound <region> loop <sound> <volume> <pitch> <period>
+Period command examples: 1200t, 60s, and 1m all mean 1200 ticks.
 Period Randomness: Random plus/minus tick variation per replay.
 Maximum Plays: 0 means unlimited; any positive number stops after that many plays.
 Fade In/Fade Out: Volume changes between repeated plays. Minecraft cannot alter

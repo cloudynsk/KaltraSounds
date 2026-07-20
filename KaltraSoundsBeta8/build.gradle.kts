@@ -3,7 +3,7 @@ plugins {
 }
 
 group = "net.kaltra"
-version = "1.0.0-beta.8"
+version = "1.0.0-beta.9"
 
 repositories {
     maven {
@@ -49,6 +49,15 @@ val verifySoundIcons by tasks.registering(JavaExec::class) {
     mainClass.set("net.kaltra.sounds.SoundIconResolverVerification")
 }
 
+val verifyLoopPeriods by tasks.registering(JavaExec::class) {
+    group = "verification"
+    description = "Runs dependency-free region loop replay-period parsing checks."
+    dependsOn(tasks.testClasses)
+    classpath = sourceSets.test.get().runtimeClasspath
+    mainClass.set("net.kaltra.sounds.DurationTicksVerification")
+}
+
 tasks.check {
     dependsOn(verifySoundIcons)
+    dependsOn(verifyLoopPeriods)
 }

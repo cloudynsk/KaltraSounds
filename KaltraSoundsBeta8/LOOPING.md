@@ -54,3 +54,16 @@ Loop:
 Minecraft's server sound packet cannot continuously change the volume of a sound instance that is already playing. KaltraSounds therefore fades the volume **between repeated plays**. This works best with short ambient clips whose duration is at or below `Period`.
 
 For one long music or ambience file, a fade-out replay would restart or overlap the clip. Keep `Fade Out.Enabled: false` for long files and use `Stop On Exit` for an immediate stop, or split the resource-pack audio into short seamless segments designed for replay fading.
+
+## Region command
+
+Native region loop assignments require an explicit replay period:
+
+```text
+/pms region sound <region> loop <sound> <volume> <pitch> <period>
+```
+
+The period accepts ticks, seconds, or minutes: `1200t`, `60s`, and `1m` are
+equivalent. Use a period at least as long as the complete audio file. KaltraSounds
+cannot discover the duration of a namespaced resource-pack sound from its key, so
+guessing a short default would cause long tracks to overlap.

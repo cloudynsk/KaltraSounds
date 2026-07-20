@@ -7,7 +7,7 @@ KaltraSounds is an all-in-one Paper sound platform intended to replace PlayMoreS
 - Paper 26.1.1
 - Paper API `26.1.1.build.29-alpha`
 - Java 25
-- Plugin version `1.0.0-beta.8`
+- Plugin version `1.0.0-beta.9`
 
 ## Included
 
@@ -24,9 +24,9 @@ KaltraSounds is an all-in-one Paper sound platform intended to replace PlayMoreS
 
 Resource-pack requesting, forcing, kicking and confirmation logic are intentionally absent. Custom namespaced sounds remain supported.
 
-## beta.8 status
+## beta.9 status
 
-This archive is an audited **source release candidate**, not a runtime-certified jar. The source passes the included static, YAML, permission, parser and structural compile checks. A final Java 25 compile against the real Paper API and a clean-server runtime pass are still required before deployment. See `AUDIT-beta.6.md`, `CHANGES-beta.7.md`, `LOOPING.md`, and `TESTING-beta.7.md`.
+This archive is an audited **source release candidate**, not a runtime-certified jar. The source passes the included static, YAML, permission, parser and structural compile checks. A final Java 25 compile against the real Paper API and a clean-server runtime pass are still required before deployment. See `AUDIT-beta.6.md`, `CHANGES-beta.9.md`, `LOOPING.md`, and `TESTING-beta.7.md`.
 
 ## License
 
