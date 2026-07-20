@@ -122,7 +122,7 @@ final class RegionModule {
     void setPos1(Player player, Location location) { pos1.put(player.getUniqueId(), location); }
     void setPos2(Player player, Location location) { pos2.put(player.getUniqueId(), location); }
 
-    String setSound(Player player, String regionName, String phase, String sound, double volume, double pitch) {
+    String setSound(Player player, String regionName, String phase, String sound, double volume, double pitch, Long loopPeriodTicks) {
         NativeRegion region = find(regionName);
         if (region == null) return "&cRegion not found.";
         if (player != null) {
@@ -139,6 +139,9 @@ final class RegionModule {
             default -> null;
         };
         if (normalizedPhase == null) return "&cPhase must be enter, leave, or loop.";
+        if (normalizedPhase.equals("Loop") && (loopPeriodTicks == null || loopPeriodTicks < 1L)) {
+            return "&cLoop sounds require a positive replay period.";
+        }
         YamlConfiguration yaml = configs.situational("regions.yml");
         String provider = providerContainingRegion(region.name());
         if (provider == null) provider = "KaltraSounds";
@@ -146,7 +149,7 @@ final class RegionModule {
         yaml.set(path + ".Enabled", true);
         if (normalizedPhase.equals("Loop")) {
             if (!yaml.contains(path + ".Delay")) yaml.set(path + ".Delay", 0);
-            if (!yaml.contains(path + ".Period")) yaml.set(path + ".Period", 100);
+            yaml.set(path + ".Period", loopPeriodTicks);
             if (!yaml.contains(path + ".Period Randomness")) yaml.set(path + ".Period Randomness", 0);
             if (!yaml.contains(path + ".Maximum Plays")) yaml.set(path + ".Maximum Plays", 0);
             if (!yaml.contains(path + ".Fade In.Enabled")) yaml.set(path + ".Fade In.Enabled", false);
@@ -167,7 +170,10 @@ final class RegionModule {
         yaml.set(path + ".Sounds.1.Options.Radius", 0.0);
         if (!configs.saveSituational("regions.yml")) return "&cCould not save Sounds/regions.yml; check the server log.";
         restartRegionLoops(region.name());
-        return "&aSet " + normalizedPhase.toLowerCase(Locale.ROOT) + " sound for &f" + region.name() + "&a.";
+        String periodMessage = normalizedPhase.equals("Loop")
+                ? " &7(replays every &f" + DurationTicks.describe(loopPeriodTicks) + "&7)"
+                : "";
+        return "&aSet " + normalizedPhase.toLowerCase(Locale.ROOT) + " sound for &f" + region.name() + "&a." + periodMessage;
     }
 
     boolean handleWand(PlayerInteractEvent event) {

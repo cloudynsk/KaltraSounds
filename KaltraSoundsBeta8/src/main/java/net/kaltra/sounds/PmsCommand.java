@@ -425,11 +425,28 @@ final class PmsCommand implements CommandExecutor, TabCompleter {
             }
             case "sound" -> {
                 if (!permission(sender, "playmoresounds.region.sound")) return true;
-                if (args.length < 5) { send(sender, "&cUsage: /pms region sound <region> <enter|leave|loop> <sound> [volume] [pitch]"); return true; }
+                if (args.length < 5) { send(sender, "&cUsage: /pms region sound <region> <enter|leave|loop> <sound> [volume] [pitch] [loop-period]"); return true; }
                 Double volume = args.length > 5 ? finiteDouble(sender, args[5], "volume", true) : 1.0;
                 Double pitch = args.length > 6 ? finiteDouble(sender, args[6], "pitch", false) : 1.0;
                 if (volume == null || pitch == null) return true;
-                send(sender, regions.setSound(player, args[2], args[3], args[4], volume, pitch));
+                Long loopPeriod = null;
+                if (args[3].equalsIgnoreCase("loop")) {
+                    if (args.length < 8) {
+                        send(sender, "&cLoop sounds require a replay period: &f/pms region sound <region> loop <sound> <volume> <pitch> <1200t|60s|3m>");
+                        send(sender, "&7Set it to at least the full length of the audio file to prevent overlapping playback.");
+                        return true;
+                    }
+                    try {
+                        loopPeriod = DurationTicks.parsePositive(args[7]);
+                    } catch (IllegalArgumentException ex) {
+                        send(sender, "&c" + ex.getMessage());
+                        return true;
+                    }
+                } else if (args.length > 7) {
+                    send(sender, "&cA replay period can only be supplied for the loop phase.");
+                    return true;
+                }
+                send(sender, regions.setSound(player, args[2], args[3], args[4], volume, pitch, loopPeriod));
             }
             default -> send(sender, "&cUnknown region action.");
         }
@@ -505,6 +522,7 @@ final class PmsCommand implements CommandExecutor, TabCompleter {
             if (args.length == 2) return match(args[1], List.of("wand", "pos1", "pos2", "create", "remove", "rename", "info", "list", "sound"));
             if (args.length == 3 && List.of("remove", "rename", "info", "sound").contains(args[1].toLowerCase(Locale.ROOT))) return match(args[2], regions.names(sender instanceof Player p ? p : null));
             if (args.length == 4 && args[1].equalsIgnoreCase("sound")) return match(args[3], List.of("enter", "leave", "loop"));
+            if (args.length == 8 && args[1].equalsIgnoreCase("sound") && args[3].equalsIgnoreCase("loop")) return match(args[7], List.of("1200t", "60s", "3m"));
         }
         if (args[0].equalsIgnoreCase("disc")) {
             if (args.length == 2) return match(args[1], List.of("list", "give", "create"));

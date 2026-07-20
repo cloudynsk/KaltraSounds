@@ -1,5 +1,5 @@
 name: KaltraSounds
-version: 1.0.0-beta.8
+version: 1.0.0-beta.9
 main: net.kaltra.sounds.KaltraSoundsPlugin
 api-version: '26.1'
 author: Kaltra
